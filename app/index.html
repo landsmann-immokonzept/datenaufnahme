@@ -6,6 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1a365d">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src *; img-src 'self' data: blob:;">
     <title>ImmoKonzept Datenaufnahme</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1220,6 +1221,7 @@
         // ==================== AUTO-SAVE ====================
 
         let _saveTimer = null;
+        let _saveChain = Promise.resolve(); // Serializes concurrent saves
 
         function scheduleSave() {
             updateSaveIndicator('unsaved');
@@ -1281,8 +1283,20 @@
                 // Deduplicate: remove existing pending entries for same project
                 try {
                     const existing = await dbGetByIndex('sync-queue', 'projectId', projectId);
-                    for (const e of existing) { await dbDelete('sync-queue', e.id); }
-                } catch(ex) {}
+                    for (const e of existing) {
+                        try { await dbDelete('sync-queue', e.id); } catch(delEx) { console.warn('Sync dedup delete failed:', delEx); }
+                    }
+                } catch(ex) {
+                    console.warn('Sync dedup query failed, pruning queue:', ex);
+                    // Fallback: prune queue to max 50 entries
+                    try {
+                        const all = await dbGetAll('sync-queue');
+                        if (all.length > 50) {
+                            const toDelete = all.slice(0, all.length - 50);
+                            for (const e of toDelete) { await dbDelete('sync-queue', e.id); }
+                        }
+                    } catch(pEx) {}
+                }
 
                 await dbPut('sync-queue', {
                     projectId: projectId,
@@ -1568,6 +1582,7 @@
         let isDrawing = false;
         let currentPath = [];
         let _canvasAbortController = null;
+        let _lastExportData = null;
 
         // ==================== INITIALISIERUNG ====================
 
@@ -1582,7 +1597,7 @@
                     try {
                         const emergency = JSON.parse(emergencySave);
                         const existing = await dbGet('projects', emergency.projectId);
-                        if (existing && emergency.timestamp > existing.modified) {
+                        if (existing && (!existing.modified || emergency.timestamp > existing.modified)) {
                             existing.data = emergency.data;
                             existing.modified = emergency.timestamp;
                             await dbPut('projects', existing);
@@ -1642,12 +1657,19 @@
             if (activeProjectId) {
                 clearTimeout(_saveTimer);
                 try {
+                    // Strip plan dataUrls to stay within localStorage quota
+                    const lightData = JSON.parse(JSON.stringify(projectData));
+                    if (lightData.bauplaene) {
+                        lightData.bauplaene.forEach(p => { p.dataUrl = ''; p.thumbnail = ''; });
+                    }
                     localStorage.setItem('immokonzept_emergency_save', JSON.stringify({
                         projectId: activeProjectId,
-                        data: projectData,
+                        data: lightData,
                         timestamp: new Date().toISOString()
                     }));
-                } catch(e) {}
+                } catch(e) {
+                    console.warn('Emergency save failed (quota?):', e);
+                }
             }
         });
 
@@ -1754,6 +1776,12 @@
                     ` : '<div></div>'}
                 </div>
             `;
+        }
+
+        function reRenderKeepScroll() {
+            const scrollY = window.scrollY;
+            renderCurrentPage();
+            requestAnimationFrame(() => window.scrollTo(0, scrollY));
         }
 
         function renderCurrentPage() {
@@ -2394,68 +2422,7 @@
             scheduleSave();
         }
 
-        // ==================== PLÄNE ====================
 
-        function renderPlaene() {
-            let plansHtml = '';
-
-            if (projectData.bauplaene.length === 0) {
-                plansHtml = `
-                    <div class="empty-state">
-                        <div class="icon">📄</div>
-                        <p>Noch keine Pläne hochgeladen</p>
-                    </div>
-                `;
-            } else {
-                plansHtml = projectData.bauplaene.map(plan => {
-                    const geschossNames = plan.geschossIds
-                        .map(id => projectData.geschosse.find(g => g.id === id)?.kuerzel)
-                        .filter(Boolean)
-                        .join(', ') || 'Nicht zugeordnet';
-
-                    return `
-                        <div class="plan-card" onclick="openPlanViewer('${plan.id}')">
-                            <div class="plan-preview">
-                                ${plan.thumbnail ? `<img src="${plan.thumbnail}" alt="${escapeHtml(plan.name)}">` : '📄'}
-                            </div>
-                            <div class="plan-info">
-                                <h4>${escapeHtml(plan.name)}</h4>
-                                <span>${escapeHtml(geschossNames)}</span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            const objektordner = projectData.deckblatt?.objektordnerLink || '';
-
-            return `
-                <div class="card" style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); border: 2px solid #42a5f5;">
-                    <h3 style="color: #1565c0; margin-bottom: 12px;">📁 Objektordner (Google Drive / Cloud)</h3>
-                    <div class="form-group">
-                        <label>Link zum Objektordner (statt Datei-Upload)</label>
-                        <input type="url" id="objektordnerLink" value="${escapeHtml(objektordner)}"
-                               placeholder="https://drive.google.com/drive/folders/..."
-                               onchange="saveObjektordnerLink()" style="font-size: 0.9rem;">
-                    </div>
-                    ${(objektordner && /^https?:\/\//i.test(objektordner)) ? `
-                        <a href="${escapeHtml(objektordner)}" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 8px;">
-                            Ordner öffnen
-                        </a>
-                    ` : `<span class="btn btn-outline btn-sm" style="margin-top: 8px; opacity: 0.5;">Kein Link</span>`}
-                </div>
-
-                <div class="card">
-                    <h2>Baupläne (lokal)</h2>
-                    <button class="btn btn-outline btn-block" onclick="openPlanModal()">
-                        + Plan hochladen (optional)
-                    </button>
-                    <div class="plan-grid">
-                        ${plansHtml}
-                    </div>
-                </div>
-            `;
-        }
 
         function openPlanModal() {
             // Geschoss-Dropdown füllen
@@ -2519,7 +2486,7 @@
                 projectData.bauplaene.push(plan);
                 scheduleSave();
                 closePlanModal();
-                renderCurrentPage();
+                reRenderKeepScroll();
                 showToast('Plan gespeichert');
             };
 
@@ -2812,7 +2779,7 @@
             });
 
             scheduleSave();
-            renderCurrentPage();
+            reRenderKeepScroll();
             showToast(`SKL ${skl} auf ${count} Räume in ${floor.kuerzel} angewendet`);
         }
 
@@ -2879,9 +2846,18 @@
             const floor = projectData.geschosse.find(g => g.id === floorId);
             if (!floor) return;
 
-            floor.einheiten[typ] = parseInt(value) || 0;
+            const newCount = parseInt(value) || 0;
+            const typKey = typ.toUpperCase();
+            floor.einheiten[typ] = newCount;
+
+            // Remove orphan units beyond the new count
+            floor.units = floor.units.filter(u => {
+                if (u.typ !== typKey) return true;
+                return u.nummer <= newCount;
+            });
+
             scheduleSave();
-            renderCurrentPage();
+            reRenderKeepScroll();
         }
 
         function quickAddRoom(floorId, bereich, unitKey, name, kuerzel) {
@@ -2911,7 +2887,7 @@
             }
 
             scheduleSave();
-            renderCurrentPage();
+            reRenderKeepScroll();
             showToast(`${name} hinzugefügt`);
         }
 
@@ -2932,7 +2908,7 @@
             }
 
             scheduleSave();
-            renderCurrentPage();
+            reRenderKeepScroll();
         }
 
         // ==================== RÄUME ====================
@@ -3031,68 +3007,7 @@
             document.getElementById('roomModal').classList.remove('active');
         }
 
-        function addRoomElement(data = null) {
-            const container = document.getElementById('roomElements');
-            const idx = container.children.length;
-
-            const options = Object.entries(KOSTENKATALOG).map(([key, val]) =>
-                `<option value="${key}" ${data && data.typ === key ? 'selected' : ''}>${val.name}</option>`
-            ).join('');
-
-            const html = `
-                <div class="element-entry" data-idx="${idx}">
-                    <div class="element-header">
-                        <h4>Element ${idx + 1}</h4>
-                        <button class="btn btn-danger" onclick="removeElement(${idx})" style="padding: 6px 12px; font-size: 0.85rem;">Entfernen</button>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Raumelement</label>
-                            <select class="element-typ" onchange="updateElementUnit(this)">
-                                <option value="">Auswählen...</option>
-                                ${options}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Menge (<span class="element-unit">${data && data.typ && KOSTENKATALOG[data.typ] ? KOSTENKATALOG[data.typ].einheit : '-'}</span>)</label>
-                            <input type="number" class="element-menge" step="0.01" value="${data ? data.menge : ''}">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Beschreibung/Schäden</label>
-                        <textarea class="element-beschreibung" placeholder="Zustand, Mängel...">${data ? data.beschreibung || '' : ''}</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Schadensklasse</label>
-                        <div class="skl-buttons element-skl">
-                            ${[1,2,3,4,5].map(i => `<button type="button" class="skl-btn ${data && data.skl === i ? 'active' : ''}" data-skl="${i}">${i}</button>`).join('')}
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            container.insertAdjacentHTML('beforeend', html);
-
-            // Add SKL click handlers
-            const newEntry = container.lastElementChild;
-            newEntry.querySelectorAll('.skl-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    this.parentElement.querySelectorAll('.skl-btn').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                });
-            });
-        }
-
-        function removeElement(idx) {
-            const elements = document.querySelectorAll('#roomElements .element-entry');
-            if (elements[idx]) elements[idx].remove();
-        }
-
-        function updateElementUnit(select) {
-            const typ = select.value;
-            const unitSpan = select.closest('.element-entry').querySelector('.element-unit');
-            unitSpan.textContent = typ ? KOSTENKATALOG[typ].einheit : '-';
-        }
+        // addRoomElement/removeElement/updateElementUnit removed (dead code, replaced by RAUM_BAUTEILE system)
 
         function saveRoom() {
             const nummer = document.getElementById('roomNummer').value;
@@ -3141,7 +3056,7 @@
 
             closeRoomModal();
             scheduleSave();
-            renderCurrentPage();
+            reRenderKeepScroll();
             showToast('Raum gespeichert');
         }
 
@@ -3308,9 +3223,9 @@
             document.getElementById('fassadeTitle').textContent = titles[fassade];
 
             const data = projectData.fassaden[fassade] || {};
-            // Fassadenart Chips laden
+            // Fassadenart Chips laden - erst alle deaktivieren, dann Wert setzen
             document.querySelectorAll('#fassadenart .chip').forEach(c => c.classList.remove('active'));
-            if (data.art) setChipValue('fassadenart', data.art);
+            setChipValue('fassadenart', data.art || '');
             document.getElementById('fassadeFlaeche').value = data.flaeche || '';
             document.getElementById('fassadeDaemmstaerke').value = data.daemmstaerke || '';
             document.getElementById('fassadeZustand').value = data.zustand || '';
@@ -3544,7 +3459,7 @@
             document.getElementById('kostenSkl').value = '3';
             document.getElementById('kostenEinheit').textContent = '-';
 
-            renderCurrentPage();
+            reRenderKeepScroll();
             showToast('Position hinzugefügt');
         }
 
@@ -3552,7 +3467,7 @@
             if (confirm('Position löschen?')) {
                 projectData.kostenpositionen.splice(idx, 1);
                 scheduleSave();
-                renderCurrentPage();
+                reRenderKeepScroll();
             }
         }
 
@@ -3642,8 +3557,8 @@
             annotationCanvas.addEventListener('mousedown', startDrawing, { signal });
             annotationCanvas.addEventListener('mousemove', draw, { signal });
             annotationCanvas.addEventListener('mouseup', stopDrawing, { signal });
-            annotationCanvas.addEventListener('touchstart', handleTouch, { signal });
-            annotationCanvas.addEventListener('touchmove', handleTouch, { signal });
+            annotationCanvas.addEventListener('touchstart', handleTouch, { signal, passive: false });
+            annotationCanvas.addEventListener('touchmove', handleTouch, { signal, passive: false });
             annotationCanvas.addEventListener('touchend', stopDrawing, { signal });
         }
 
@@ -3800,7 +3715,7 @@
             } catch(e) {}
 
             closeAirtableModal();
-            renderCurrentPage();
+            reRenderKeepScroll();
             showToast('Airtable-Einstellungen gespeichert');
         }
 
@@ -3922,7 +3837,7 @@
 
                 mapAirtableToProject(record.fields, record.id, projektId);
                 scheduleSave();
-                renderCurrentPage();
+                reRenderKeepScroll();
                 showToast('Objekt geladen: ' + (record.fields['Straße'] || record.fields.Adresse || recordId));
             } else {
                 // Fallback: direkt von Airtable laden
@@ -3976,7 +3891,7 @@
                 const record = await response.json();
                 mapAirtableToProject(record.fields, record.id);
                 scheduleSave();
-                renderCurrentPage();
+                reRenderKeepScroll();
                 showToast('Projekt aus Airtable geladen');
             } catch (err) {
                 showToast('Ladefehler: ' + err.message);
@@ -4036,29 +3951,31 @@
 
         // ==================== SPEICHERN & LADEN ====================
 
-        async function saveProject(silent = false) {
+        function saveProject(silent = false) {
+            _saveChain = _saveChain.then(() => _doSave(silent)).catch(() => {});
+            return _saveChain;
+        }
+
+        async function _doSave(silent = false) {
             updateSaveIndicator('saving');
             try {
                 if (_db && activeProjectId) {
                     const proj = await dbGet('projects', activeProjectId);
                     if (proj) {
-                        proj.data = projectData;
+                        proj.data = JSON.parse(JSON.stringify(projectData));
                         proj.modified = new Date().toISOString();
                         proj.name = projectData.deckblatt?.adresse || proj.name || 'Unbenannt';
                         await dbPut('projects', proj);
                     }
-                    // Queue sync (deep-clone happens inside queueSync only if needed)
                     queueSync(activeProjectId);
                 } else {
-                    // Fallback localStorage
                     localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData));
                 }
                 updateSaveIndicator('saved');
                 if (!silent) showToast('Projekt gespeichert');
             } catch (e) {
                 console.error('Save error:', e);
-                // Fallback
-                localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData));
+                try { localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData)); } catch(le) {}
                 updateSaveIndicator('saved');
                 if (!silent) showToast('Gespeichert (localStorage Fallback)');
             }
@@ -4486,7 +4403,7 @@
 
             scheduleSave();
             renderNavigation();
-            renderCurrentPage();
+            reRenderKeepScroll();
             showToast('Mangel hinzugefügt');
         }
 
@@ -4495,7 +4412,7 @@
             projectData.maengel.splice(idx, 1);
             scheduleSave();
             renderNavigation();
-            renderCurrentPage();
+            reRenderKeepScroll();
         }
 
         // ==================== PDF EXPORT VIA GOTENBERG ====================
@@ -4792,23 +4709,15 @@
 
                 // Hilfsfunktion für Raum-Export
                 const exportRoom = (room, bereich) => {
-                    sheetData.push([bereich, room.nummer || '', room.name]);
-                    sheetData.push(['Raumelement', 'Menge', 'Einheit', 'SKl', 'Beschreibung/Schäden', 'Kosten']);
-
-                    if (room.elemente) {
-                        room.elemente.forEach(el => {
-                            const item = KOSTENKATALOG[el.typ];
-                            const cost = calculateCost(el.typ, el.menge, el.skl);
-                            sheetData.push([
-                                item ? item.name : el.typ,
-                                el.menge,
-                                item ? item.einheit : '',
-                                el.skl,
-                                el.beschreibung || '',
-                                cost.toFixed(2) + ' €'
-                            ]);
+                    sheetData.push([bereich, room.nummer || '', room.name, 'Fläche: ' + (room.flaeche || '-') + ' m²']);
+                    if (room.bauteile && Object.keys(room.bauteile).length > 0) {
+                        sheetData.push(['Bauteil', 'SKL', 'Bemerkung']);
+                        Object.entries(room.bauteile).forEach(([key, bt]) => {
+                            const label = RAUM_BAUTEILE ? (RAUM_BAUTEILE.find(b => b.key === key)?.name || key) : key;
+                            sheetData.push([label, bt.skl || '-', bt.bemerkung || '']);
                         });
                     }
+                    if (room.bemerkung) sheetData.push(['Bemerkung:', room.bemerkung]);
                     sheetData.push(['']);
                 };
 
@@ -4840,58 +4749,25 @@
                 XLSX.utils.book_append_sheet(wb, ws, sheetName);
             });
 
-            // === KOSTENSCHÄTZUNG ===
+            // === KOSTENSCHÄTZUNG (aus kostenpositionen) ===
             const kostenData = [
                 ['Kostenschätzung'],
                 [''],
-                ['Bereich', 'Anzahl Elemente', 'Geschätzte Kosten']
+                ['Typ', 'Menge', 'Einheit', 'SKL', 'Kosten']
             ];
 
             let total = 0;
-            projectData.geschosse.forEach(floor => {
-                let floorCost = 0;
-                let count = 0;
-
-                // Allgemeinbereiche
-                if (floor.allgemein) {
-                    floor.allgemein.forEach(room => {
-                        if (room.elemente) {
-                            room.elemente.forEach(el => {
-                                floorCost += calculateCost(el.typ, el.menge, el.skl);
-                                count++;
-                            });
-                        }
-                    });
-                }
-
-                // Einheiten
-                if (floor.units) {
-                    floor.units.forEach(unit => {
-                        unit.raeume.forEach(room => {
-                            if (room.elemente) {
-                                room.elemente.forEach(el => {
-                                    floorCost += calculateCost(el.typ, el.menge, el.skl);
-                                    count++;
-                                });
-                            }
-                        });
-                    });
-                }
-
-                // Alte Struktur
-                if (floor.raeume) {
-                    floor.raeume.forEach(room => {
-                        if (room.elemente) {
-                            room.elemente.forEach(el => {
-                                floorCost += calculateCost(el.typ, el.menge, el.skl);
-                                count++;
-                            });
-                        }
-                    });
-                }
-
-                kostenData.push([floor.name, count, floorCost.toFixed(2) + ' €']);
-                total += floorCost;
+            (projectData.kostenpositionen || []).forEach(pos => {
+                const item = KOSTENKATALOG[pos.typ];
+                const cost = calculateCost(pos.typ, pos.menge, pos.skl);
+                kostenData.push([
+                    item ? item.name : pos.typ,
+                    pos.menge,
+                    item ? item.einheit : '',
+                    pos.skl,
+                    cost.toFixed(2) + ' €'
+                ]);
+                total += cost;
             });
 
             // Dach
@@ -5280,8 +5156,8 @@
             `;
             document.body.appendChild(modal);
 
-            // Daten für spätere Nutzung speichern
-            window._exportData = data;
+            // Daten für spätere Nutzung speichern (nicht auf window)
+            _lastExportData = data;
 
             // Gespeicherte Webhook URL laden (aus IDB oder localStorage)
             (async () => {
@@ -5301,7 +5177,7 @@
         }
 
         function downloadJSON() {
-            const data = window._exportData;
+            const data = _lastExportData;
             const d = data.gebaeude;
             const filename = `Datenaufnahme_${d.projektnummer || 'Export'}_${new Date().toISOString().split('T')[0]}.json`;
 
@@ -5342,7 +5218,7 @@
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(window._exportData)
+                    body: JSON.stringify(_lastExportData)
                 });
 
                 if (response.ok) {
