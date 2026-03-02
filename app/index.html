@@ -417,6 +417,36 @@
             gap: 6px;
         }
 
+        .option-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chip {
+            padding: 8px 14px;
+            border-radius: 20px;
+            border: 2px solid var(--border);
+            background: white;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .chip:hover {
+            border-color: var(--primary);
+            background: #f0f7ff;
+        }
+
+        .chip.active {
+            background: var(--chip-active-bg, var(--primary));
+            color: var(--chip-active-color, white);
+            border-color: var(--chip-active-border, var(--primary));
+        }
+
         .skl-btn {
             width: 40px;
             height: 40px;
@@ -1804,8 +1834,8 @@
         // ==================== DECKBLATT ====================
 
         function renderDeckblatt() {
-            const gebaeudeOptions = Object.entries(GEBAEUDEARTEN).map(([key, name]) =>
-                `<option value="${key}">${name}</option>`
+            const gebaeudeChips = Object.entries(GEBAEUDEARTEN).map(([key, name]) =>
+                `<span class="chip" data-value="${escapeHtml(key)}" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDeckblatt()">${escapeHtml(name)}</span>`
             ).join('');
 
             const hasAirtableConfig = AIRTABLE_CONFIG.apiKey && AIRTABLE_CONFIG.baseId;
@@ -1875,10 +1905,7 @@
                     <h2>Gebäude</h2>
                     <div class="form-group">
                         <label>Gebäudeart (ImmoWertV)</label>
-                        <select id="gebaeudeArt" onchange="saveDeckblatt()">
-                            <option value="">Auswählen...</option>
-                            ${gebaeudeOptions}
-                        </select>
+                        <div class="option-chips" id="gebaeudeArt">${gebaeudeChips}</div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -1913,12 +1940,15 @@
             if (!d) return;
 
             const fields = ['adresse', 'projektnummer', 'datum', 'uhrzeitVon', 'uhrzeitBis', 'beteiligte',
-                           'gebaeudeArt', 'baujahr', 'vollgeschosse', 'wohnflaeche', 'nutzflaeche', 'grundstueck'];
+                           'baujahr', 'vollgeschosse', 'wohnflaeche', 'nutzflaeche', 'grundstueck'];
 
             fields.forEach(field => {
                 const el = document.getElementById(field);
                 if (el && d[field]) el.value = d[field];
             });
+
+            // Gebaeudeart Chips laden
+            if (d.gebaeudeArt) setChipValue('gebaeudeArt', d.gebaeudeArt);
 
             document.getElementById('projectName').textContent = d.adresse || 'Kein Projekt geladen';
 
@@ -1937,7 +1967,7 @@
                 uhrzeitVon: document.getElementById('uhrzeitVon')?.value || '',
                 uhrzeitBis: document.getElementById('uhrzeitBis')?.value || '',
                 beteiligte: document.getElementById('beteiligte')?.value || '',
-                gebaeudeArt: document.getElementById('gebaeudeArt')?.value || '',
+                gebaeudeArt: getChipValue('gebaeudeArt'),
                 baujahr: document.getElementById('baujahr')?.value || '',
                 vollgeschosse: document.getElementById('vollgeschosse')?.value || '',
                 wohnflaeche: document.getElementById('wohnflaeche')?.value || '',
@@ -1960,16 +1990,26 @@
 
         // ==================== OBJEKTDATEN ====================
 
+        // ---- Chip-Button Helpers ----
+        function getChipValue(id) {
+            const active = document.querySelector(`#${id} .chip.active`);
+            return active ? active.dataset.value : '';
+        }
+
+        function setChipValue(id, value) {
+            if (!value) return;
+            document.querySelectorAll(`#${id} .chip`).forEach(c => {
+                c.classList.toggle('active', c.dataset.value === value);
+            });
+        }
+
         function renderObjektdaten() {
-            const makeSelect = (id, options, label) => {
-                const opts = options.map(o => `<option value="${o}">${o}</option>`).join('');
+            const makeChips = (id, options, label) => {
+                const chips = options.map(o => `<span class="chip" data-value="${escapeHtml(o)}" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveObjektdaten()">${escapeHtml(o)}</span>`).join('');
                 return `
                     <div class="form-group">
                         <label>${label}</label>
-                        <select id="${id}" onchange="saveObjektdaten()">
-                            <option value="">-- wählen --</option>
-                            ${opts}
-                        </select>
+                        <div class="option-chips" id="${id}">${chips}</div>
                     </div>
                 `;
             };
@@ -1992,23 +2032,23 @@
                 <div class="card">
                     <h2>Lage</h2>
                     <div class="form-row">
-                        ${makeSelect('obj_lage', OBJEKTDATEN_OPTIONEN.lage, 'Lagequalität')}
-                        ${makeSelect('obj_umgebung', OBJEKTDATEN_OPTIONEN.umgebung, 'Umgebung')}
+                        ${makeChips('obj_lage', OBJEKTDATEN_OPTIONEN.lage, 'Lagequalität')}
+                        ${makeChips('obj_umgebung', OBJEKTDATEN_OPTIONEN.umgebung, 'Umgebung')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_geschossigkeit', OBJEKTDATEN_OPTIONEN.geschossigkeit, 'Bebauung Umgebung')}
+                        ${makeChips('obj_geschossigkeit', OBJEKTDATEN_OPTIONEN.geschossigkeit, 'Bebauung Umgebung')}
                     </div>
                 </div>
 
                 <div class="card">
                     <h2>Grundstück</h2>
                     <div class="form-row">
-                        ${makeSelect('obj_form', OBJEKTDATEN_OPTIONEN.grundstueck_form, 'Grundstücksform')}
-                        ${makeSelect('obj_topografie', OBJEKTDATEN_OPTIONEN.grundstueck_topografie, 'Topografie')}
+                        ${makeChips('obj_form', OBJEKTDATEN_OPTIONEN.grundstueck_form, 'Grundstücksform')}
+                        ${makeChips('obj_topografie', OBJEKTDATEN_OPTIONEN.grundstueck_topografie, 'Topografie')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_boden', OBJEKTDATEN_OPTIONEN.boden, 'Bodenbeschaffenheit')}
-                        ${makeSelect('obj_altlasten', OBJEKTDATEN_OPTIONEN.altlasten, 'Altlasten')}
+                        ${makeChips('obj_boden', OBJEKTDATEN_OPTIONEN.boden, 'Bodenbeschaffenheit')}
+                        ${makeChips('obj_altlasten', OBJEKTDATEN_OPTIONEN.altlasten, 'Altlasten')}
                     </div>
                     ${makeCheckboxGroup('obj_immissionen', OBJEKTDATEN_OPTIONEN.immissionen, 'Immissionen')}
                 </div>
@@ -2017,11 +2057,11 @@
                     <h2>Außenanlagen</h2>
                     ${makeCheckboxGroup('obj_einfriedung', ['Zaunanlage', 'Hecke', 'Mauer', 'Grenzbebauung', 'keine'], 'Einfriedung (Mehrfachauswahl)')}
                     <div class="form-row" style="margin-top: 16px;">
-                        ${makeSelect('obj_befestigung', OBJEKTDATEN_OPTIONEN.befestigung, 'Bodenbefestigung')}
+                        ${makeChips('obj_befestigung', OBJEKTDATEN_OPTIONEN.befestigung, 'Bodenbefestigung')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_bepflanzung', OBJEKTDATEN_OPTIONEN.bepflanzung, 'Bepflanzung')}
-                        ${makeSelect('obj_stellplaetze', OBJEKTDATEN_OPTIONEN.stellplaetze, 'Stellplätze')}
+                        ${makeChips('obj_bepflanzung', OBJEKTDATEN_OPTIONEN.bepflanzung, 'Bepflanzung')}
+                        ${makeChips('obj_stellplaetze', OBJEKTDATEN_OPTIONEN.stellplaetze, 'Stellplätze')}
                     </div>
                     <div class="form-group">
                         <label>Bemerkungen Außenanlagen</label>
@@ -2032,31 +2072,31 @@
                 <div class="card">
                     <h2>Baukonstruktion (Gebäude gesamt)</h2>
                     <div class="form-row">
-                        ${makeSelect('obj_fundamente', BAUTEIL_OPTIONEN.fundamente, 'Fundamente')}
-                        ${makeSelect('obj_keller', BAUTEIL_OPTIONEN.keller, 'Keller')}
+                        ${makeChips('obj_fundamente', BAUTEIL_OPTIONEN.fundamente, 'Fundamente')}
+                        ${makeChips('obj_keller', BAUTEIL_OPTIONEN.keller, 'Keller')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_aussenwand', BAUTEIL_OPTIONEN.aussenwand, 'Außenwände')}
-                        ${makeSelect('obj_innenwand', BAUTEIL_OPTIONEN.innenwand, 'Innenwände')}
+                        ${makeChips('obj_aussenwand', BAUTEIL_OPTIONEN.aussenwand, 'Außenwände')}
+                        ${makeChips('obj_innenwand', BAUTEIL_OPTIONEN.innenwand, 'Innenwände')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_decken', BAUTEIL_OPTIONEN.decken, 'Decken')}
-                        ${makeSelect('obj_treppen', BAUTEIL_OPTIONEN.treppen, 'Treppen')}
+                        ${makeChips('obj_decken', BAUTEIL_OPTIONEN.decken, 'Decken')}
+                        ${makeChips('obj_treppen', BAUTEIL_OPTIONEN.treppen, 'Treppen')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_dachkonstruktion', BAUTEIL_OPTIONEN.dachkonstruktion, 'Dachkonstruktion')}
-                        ${makeSelect('obj_dachdeckung', BAUTEIL_OPTIONEN.dachdeckung, 'Dachdeckung')}
+                        ${makeChips('obj_dachkonstruktion', BAUTEIL_OPTIONEN.dachkonstruktion, 'Dachkonstruktion')}
+                        ${makeChips('obj_dachdeckung', BAUTEIL_OPTIONEN.dachdeckung, 'Dachdeckung')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_fenster', BAUTEIL_OPTIONEN.fenster, 'Fenster')}
-                        ${makeSelect('obj_verglasung', BAUTEIL_OPTIONEN.verglasung, 'Verglasung')}
+                        ${makeChips('obj_fenster', BAUTEIL_OPTIONEN.fenster, 'Fenster')}
+                        ${makeChips('obj_verglasung', BAUTEIL_OPTIONEN.verglasung, 'Verglasung')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_heizung', BAUTEIL_OPTIONEN.heizung, 'Heizung')}
-                        ${makeSelect('obj_elektro', BAUTEIL_OPTIONEN.elektro, 'Elektroinstallation')}
+                        ${makeChips('obj_heizung', BAUTEIL_OPTIONEN.heizung, 'Heizung')}
+                        ${makeChips('obj_elektro', BAUTEIL_OPTIONEN.elektro, 'Elektroinstallation')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_zustand', BAUTEIL_OPTIONEN.zustand, 'Gesamtzustand Gebäude')}
+                        ${makeChips('obj_zustand', BAUTEIL_OPTIONEN.zustand, 'Gesamtzustand Gebäude')}
                     </div>
                 </div>
 
@@ -2277,15 +2317,14 @@
         function loadObjektdaten() {
             const obj = projectData.objektdaten || {};
 
-            // Selects laden
-            const selects = ['lage', 'umgebung', 'geschossigkeit', 'form', 'topografie', 'boden', 'altlasten',
-                            'einfriedung', 'befestigung', 'bepflanzung', 'stellplaetze',
+            // Chips laden
+            const chipFields = ['lage', 'umgebung', 'geschossigkeit', 'form', 'topografie', 'boden', 'altlasten',
+                            'befestigung', 'bepflanzung', 'stellplaetze',
                             'fundamente', 'keller', 'aussenwand', 'innenwand', 'decken', 'treppen',
                             'dachkonstruktion', 'dachdeckung', 'fenster', 'verglasung', 'heizung', 'elektro', 'zustand'];
 
-            selects.forEach(key => {
-                const el = document.getElementById('obj_' + key);
-                if (el && obj[key]) el.value = obj[key];
+            chipFields.forEach(key => {
+                if (obj[key]) setChipValue('obj_' + key, obj[key]);
             });
 
             // Checkboxen laden
@@ -2318,6 +2357,7 @@
 
         function saveObjektdaten() {
             const getVal = (id) => document.getElementById(id)?.value || '';
+            const gc = (id) => getChipValue(id);
 
             // Checkboxen sammeln - Immissionen
             const immissionen = [];
@@ -2343,33 +2383,33 @@
             });
 
             projectData.objektdaten = {
-                ...bestehendeModPunkte,  // Modernisierungspunkte beibehalten
-                lage: getVal('obj_lage'),
-                umgebung: getVal('obj_umgebung'),
-                geschossigkeit: getVal('obj_geschossigkeit'),
-                form: getVal('obj_form'),
-                topografie: getVal('obj_topografie'),
-                boden: getVal('obj_boden'),
-                altlasten: getVal('obj_altlasten'),
+                ...bestehendeModPunkte,
+                lage: gc('obj_lage'),
+                umgebung: gc('obj_umgebung'),
+                geschossigkeit: gc('obj_geschossigkeit'),
+                form: gc('obj_form'),
+                topografie: gc('obj_topografie'),
+                boden: gc('obj_boden'),
+                altlasten: gc('obj_altlasten'),
                 immissionen: immissionen,
-                einfriedung: einfriedung,  // Jetzt Array statt String
-                befestigung: getVal('obj_befestigung'),
-                bepflanzung: getVal('obj_bepflanzung'),
-                stellplaetze: getVal('obj_stellplaetze'),
+                einfriedung: einfriedung,
+                befestigung: gc('obj_befestigung'),
+                bepflanzung: gc('obj_bepflanzung'),
+                stellplaetze: gc('obj_stellplaetze'),
                 aussen_bemerkung: getVal('obj_aussen_bemerkung'),
-                fundamente: getVal('obj_fundamente'),
-                keller: getVal('obj_keller'),
-                aussenwand: getVal('obj_aussenwand'),
-                innenwand: getVal('obj_innenwand'),
-                decken: getVal('obj_decken'),
-                treppen: getVal('obj_treppen'),
-                dachkonstruktion: getVal('obj_dachkonstruktion'),
-                dachdeckung: getVal('obj_dachdeckung'),
-                fenster: getVal('obj_fenster'),
-                verglasung: getVal('obj_verglasung'),
-                heizung: getVal('obj_heizung'),
-                elektro: getVal('obj_elektro'),
-                zustand: getVal('obj_zustand')
+                fundamente: gc('obj_fundamente'),
+                keller: gc('obj_keller'),
+                aussenwand: gc('obj_aussenwand'),
+                innenwand: gc('obj_innenwand'),
+                decken: gc('obj_decken'),
+                treppen: gc('obj_treppen'),
+                dachkonstruktion: gc('obj_dachkonstruktion'),
+                dachdeckung: gc('obj_dachdeckung'),
+                fenster: gc('obj_fenster'),
+                verglasung: gc('obj_verglasung'),
+                heizung: gc('obj_heizung'),
+                elektro: gc('obj_elektro'),
+                zustand: gc('obj_zustand')
             };
 
             scheduleSave();
@@ -3134,25 +3174,23 @@
                     <h2>Dachkonstruktion</h2>
                     <div class="form-group">
                         <label>Dachform</label>
-                        <select id="dachform" onchange="saveDach()">
-                            <option value="">Auswählen...</option>
-                            <option value="satteldach">Satteldach</option>
-                            <option value="walmdach">Walmdach</option>
-                            <option value="mansarddach">Mansarddach</option>
-                            <option value="flachdach">Flachdach</option>
-                            <option value="pultdach">Pultdach</option>
-                        </select>
+                        <div class="option-chips" id="dachform">
+                            <span class="chip" data-value="satteldach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Satteldach</span>
+                            <span class="chip" data-value="walmdach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Walmdach</span>
+                            <span class="chip" data-value="mansarddach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Mansarddach</span>
+                            <span class="chip" data-value="flachdach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Flachdach</span>
+                            <span class="chip" data-value="pultdach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Pultdach</span>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Dacheindeckung</label>
-                        <select id="dacheindeckung" onchange="saveDach()">
-                            <option value="">Auswählen...</option>
-                            <option value="ziegel">Tondachziegel</option>
-                            <option value="betondachstein">Betondachsteine</option>
-                            <option value="schiefer">Schiefer</option>
-                            <option value="bitumen">Bitumenbahnen</option>
-                            <option value="metall">Metall</option>
-                        </select>
+                        <div class="option-chips" id="dacheindeckung">
+                            <span class="chip" data-value="ziegel" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Tondachziegel</span>
+                            <span class="chip" data-value="betondachstein" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Betondachsteine</span>
+                            <span class="chip" data-value="schiefer" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Schiefer</span>
+                            <span class="chip" data-value="bitumen" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Bitumenbahnen</span>
+                            <span class="chip" data-value="metall" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Metall</span>
+                        </div>
                     </div>
                     <div class="form-row-3">
                         <div class="form-group">
@@ -3188,8 +3226,8 @@
 
         function loadDachData() {
             const d = projectData.dach || {};
-            if (document.getElementById('dachform')) document.getElementById('dachform').value = d.form || '';
-            if (document.getElementById('dacheindeckung')) document.getElementById('dacheindeckung').value = d.eindeckung || '';
+            if (d.form) setChipValue('dachform', d.form);
+            if (d.eindeckung) setChipValue('dacheindeckung', d.eindeckung);
             if (document.getElementById('dachflaeche')) document.getElementById('dachflaeche').value = d.flaeche || '';
             if (document.getElementById('dachBaujahr')) document.getElementById('dachBaujahr').value = d.baujahr || '';
             if (document.getElementById('dachSanierung')) document.getElementById('dachSanierung').value = d.sanierung || '';  // NEU
@@ -3210,8 +3248,8 @@
         function saveDach() {
             const sklBtn = document.querySelector('#dach-skl .skl-btn.active');
             projectData.dach = {
-                form: document.getElementById('dachform')?.value || '',
-                eindeckung: document.getElementById('dacheindeckung')?.value || '',
+                form: getChipValue('dachform'),
+                eindeckung: getChipValue('dacheindeckung'),
                 flaeche: document.getElementById('dachflaeche')?.value || '',
                 baujahr: document.getElementById('dachBaujahr')?.value || '',
                 sanierung: document.getElementById('dachSanierung')?.value || '',  // NEU
@@ -3229,26 +3267,25 @@
                     <h2>Fassaden</h2>
                     <div class="form-group">
                         <label>Aktive Fassade</label>
-                        <select id="activeFassade" onchange="switchFassade(this.value)">
-                            <option value="nord">Nordfassade</option>
-                            <option value="ost">Ostfassade</option>
-                            <option value="sued">Südfassade</option>
-                            <option value="west">Westfassade</option>
-                        </select>
+                        <div class="option-chips" id="activeFassade">
+                            <span class="chip active" data-value="nord" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');switchFassade(this.dataset.value)">Nord</span>
+                            <span class="chip" data-value="ost" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');switchFassade(this.dataset.value)">Ost</span>
+                            <span class="chip" data-value="sued" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');switchFassade(this.dataset.value)">Süd</span>
+                            <span class="chip" data-value="west" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');switchFassade(this.dataset.value)">West</span>
+                        </div>
                     </div>
                 </div>
                 <div class="card">
                     <h2 id="fassadeTitle">Nordfassade</h2>
                     <div class="form-group">
                         <label>Fassadenart</label>
-                        <select id="fassadenart" onchange="saveFassade()">
-                            <option value="">Auswählen...</option>
-                            <option value="putz">Putzfassade</option>
-                            <option value="klinker">Klinkerfassade</option>
-                            <option value="wdvs">WDVS</option>
-                            <option value="holz">Holzfassade</option>
-                            <option value="vhf">Vorgehängte Fassade</option>
-                        </select>
+                        <div class="option-chips" id="fassadenart">
+                            <span class="chip" data-value="putz" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">Putzfassade</span>
+                            <span class="chip" data-value="klinker" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">Klinkerfassade</span>
+                            <span class="chip" data-value="wdvs" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">WDVS</span>
+                            <span class="chip" data-value="holz" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">Holzfassade</span>
+                            <span class="chip" data-value="vhf" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">Vorgehängt</span>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Fassadenfläche (m²)</label>
@@ -3277,7 +3314,7 @@
         }
 
         function loadFassadeData() {
-            document.getElementById('activeFassade').value = currentFassade;
+            setChipValue('activeFassade', currentFassade);
             switchFassade(currentFassade);
         }
 
@@ -3292,7 +3329,9 @@
             document.getElementById('fassadeTitle').textContent = titles[fassade];
 
             const data = projectData.fassaden[fassade] || {};
-            document.getElementById('fassadenart').value = data.art || '';
+            // Fassadenart Chips laden
+            document.querySelectorAll('#fassadenart .chip').forEach(c => c.classList.remove('active'));
+            if (data.art) setChipValue('fassadenart', data.art);
             document.getElementById('fassadeFlaeche').value = data.flaeche || '';
             document.getElementById('fassadeDaemmstaerke').value = data.daemmstaerke || '';
             document.getElementById('fassadeZustand').value = data.zustand || '';
@@ -3314,7 +3353,7 @@
 
             const sklBtn = document.querySelector('#fassade-skl .skl-btn.active');
             projectData.fassaden[currentFassade] = {
-                art: document.getElementById('fassadenart')?.value || '',
+                art: getChipValue('fassadenart'),
                 flaeche: document.getElementById('fassadeFlaeche')?.value || '',
                 daemmstaerke: document.getElementById('fassadeDaemmstaerke')?.value || '',
                 zustand: document.getElementById('fassadeZustand')?.value || '',
@@ -4409,12 +4448,12 @@
                         </div>
                         <div class="form-group">
                             <label>Priorität</label>
-                            <select id="mangelPrio">
-                                <option value="niedrig">Niedrig</option>
-                                <option value="mittel" selected>Mittel</option>
-                                <option value="hoch">Hoch</option>
-                                <option value="kritisch">Kritisch</option>
-                            </select>
+                            <div class="option-chips" id="mangelPrio">
+                                <span class="chip" data-value="niedrig" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')" style="--chip-active-bg:#48bb78;--chip-active-border:#48bb78">Niedrig</span>
+                                <span class="chip active" data-value="mittel" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')" style="--chip-active-bg:#ecc94b;--chip-active-border:#ecc94b;--chip-active-color:#744210">Mittel</span>
+                                <span class="chip" data-value="hoch" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')" style="--chip-active-bg:#ed8936;--chip-active-border:#ed8936">Hoch</span>
+                                <span class="chip" data-value="kritisch" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')" style="--chip-active-bg:#e53e3e;--chip-active-border:#e53e3e">Kritisch</span>
+                            </div>
                         </div>
                     </div>
                     <div class="form-group">
@@ -4446,7 +4485,7 @@
             const geschossName = geschossSelect?.selectedOptions[0]?.dataset?.name || '';
             const raum = document.getElementById('mangelRaum')?.value || '';
             const beschreibung = document.getElementById('mangelBeschreibung')?.value?.trim() || '';
-            const prioritaet = document.getElementById('mangelPrio')?.value || 'mittel';
+            const prioritaet = getChipValue('mangelPrio') || 'mittel';
             const kostenschaetzung = parseFloat(document.getElementById('mangelKosten')?.value) || 0;
 
             if (!beschreibung) {
