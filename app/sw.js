@@ -1,4 +1,4 @@
-const CACHE_NAME = 'immokonzept-v2.1.2';
+const CACHE_NAME = 'immokonzept-v3.0.0';
 const ASSETS = [
   './',
   './index.html',
@@ -56,7 +56,7 @@ self.addEventListener('fetch', event => {
         return response;
       }).catch(() => {
         // Offline fallback for HTML pages
-        if (event.request.headers.get('accept').includes('text/html')) {
+        if (event.request.headers.get('accept')?.includes('text/html')) {
           return caches.match('./index.html');
         }
       });
@@ -67,11 +67,59 @@ self.addEventListener('fetch', event => {
 // Background sync for data
 self.addEventListener('sync', event => {
   if (event.tag === 'sync-data') {
-    event.waitUntil(syncData());
+    event.waitUntil(syncFromQueue());
   }
 });
 
-async function syncData() {
-  // Placeholder for future server sync
-  console.log('Background sync triggered');
+async function syncFromQueue() {
+  const DB_NAME = 'immokonzept-datenaufnahme';
+  const DB_VERSION = 1;
+
+  try {
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+
+    // Get sync webhook URL
+    const urlTx = db.transaction('settings', 'readonly');
+    const urlReq = urlTx.objectStore('settings').get('sync_webhook_url');
+    const syncUrl = await new Promise(resolve => {
+      urlReq.onsuccess = () => resolve(urlReq.result?.value || '');
+      urlReq.onerror = () => resolve('');
+    });
+
+    if (!syncUrl) { db.close(); return; }
+
+    // Get pending items
+    const tx = db.transaction('sync-queue', 'readonly');
+    const idx = tx.objectStore('sync-queue').index('status');
+    const pendingReq = idx.getAll('pending');
+    const pending = await new Promise(resolve => {
+      pendingReq.onsuccess = () => resolve(pendingReq.result || []);
+      pendingReq.onerror = () => resolve([]);
+    });
+
+    // Send each item
+    for (const item of pending) {
+      try {
+        const resp = await fetch(syncUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item.payload)
+        });
+        if (resp.ok) {
+          const delTx = db.transaction('sync-queue', 'readwrite');
+          delTx.objectStore('sync-queue').delete(item.id);
+        }
+      } catch (e) {
+        console.warn('SW sync failed for item', item.id, e);
+      }
+    }
+
+    db.close();
+  } catch (e) {
+    console.error('SW syncFromQueue error:', e);
+  }
 }

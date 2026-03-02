@@ -73,6 +73,97 @@
             display: inline-block;
         }
 
+        /* Save Indicator */
+        .save-indicator {
+            font-size: 0.75rem;
+            padding: 2px 10px;
+            border-radius: 12px;
+            display: inline-block;
+            margin-top: 4px;
+            transition: all 0.3s;
+        }
+        .save-indicator.saved { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); }
+        .save-indicator.unsaved { background: var(--accent); color: white; }
+        .save-indicator.saving { background: var(--success); color: white; }
+
+        /* Sync Badge */
+        .sync-badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: var(--accent);
+            color: white;
+            margin-left: 8px;
+            display: none;
+        }
+        .sync-badge.visible { display: inline-block; }
+
+        /* Nav Badge */
+        .nav-badge {
+            background: var(--danger);
+            color: white;
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+            margin-left: 4px;
+            font-weight: 700;
+            vertical-align: super;
+        }
+
+        /* Project Cards */
+        .project-card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 4px solid transparent;
+        }
+        .project-card:hover { transform: translateY(-1px); box-shadow: 0 6px 12px rgba(0,0,0,0.12); }
+        .project-card.active-project { border-left-color: var(--primary); }
+        .project-card h3 { font-size: 1rem; margin-bottom: 4px; color: var(--text); }
+        .project-card .project-meta { font-size: 0.8rem; color: var(--text-light); }
+        .project-card .project-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+        /* Maengel */
+        .mangel-card {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 8px;
+            border-left: 4px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .mangel-card.prio-niedrig { border-left-color: #48bb78; }
+        .mangel-card.prio-mittel { border-left-color: #ecc94b; }
+        .mangel-card.prio-hoch { border-left-color: #ed8936; }
+        .mangel-card.prio-kritisch { border-left-color: #e53e3e; }
+        .mangel-prio {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .mangel-prio.niedrig { background: #c6f6d5; color: #276749; }
+        .mangel-prio.mittel { background: #fefcbf; color: #744210; }
+        .mangel-prio.hoch { background: #feebc8; color: #7b341e; }
+        .mangel-prio.kritisch { background: #fed7d7; color: #9b2c2c; }
+        .mangel-auto {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            border-left: 3px solid var(--text-light);
+            opacity: 0.85;
+        }
+
         nav {
             background: var(--card);
             border-bottom: 1px solid var(--border);
@@ -803,7 +894,11 @@
     <header>
         <h1>ImmoKonzept Datenaufnahme</h1>
         <div class="subtitle" id="projectName">Kein Projekt geladen</div>
-        <span class="offline-badge">Offline-Modus</span>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <span class="save-indicator saved" id="saveIndicator">Gespeichert</span>
+            <span class="sync-badge" id="syncBadge"></span>
+            <span class="offline-badge">Offline-Modus</span>
+        </div>
     </header>
 
     <nav>
@@ -816,7 +911,7 @@
         <!-- Dynamisch generiert -->
     </main>
 
-    <div class="bottom-actions">
+    <div class="bottom-actions" id="bottomActions">
         <button class="btn btn-outline" onclick="saveProject()" style="flex: 1;">
             Speichern
         </button>
@@ -825,6 +920,9 @@
         </button>
         <button class="btn btn-primary" onclick="exportJSON()" style="flex: 1;">
             JSON/n8n
+        </button>
+        <button class="btn" onclick="exportPDF()" style="flex: 1; background: var(--accent); color: white;">
+            PDF
         </button>
     </div>
 
@@ -980,6 +1078,238 @@
     <div id="toast" class="toast"></div>
 
     <script>
+        // ==================== INDEXEDDB WRAPPER ====================
+
+        const DB_NAME = 'immokonzept-datenaufnahme';
+        const DB_VERSION = 1;
+        let _db = null;
+        let activeProjectId = null;
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                if (_db) { resolve(_db); return; }
+                const req = indexedDB.open(DB_NAME, DB_VERSION);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('projects')) {
+                        db.createObjectStore('projects', { keyPath: 'id' });
+                    }
+                    if (!db.objectStoreNames.contains('settings')) {
+                        db.createObjectStore('settings', { keyPath: 'key' });
+                    }
+                    if (!db.objectStoreNames.contains('sync-queue')) {
+                        const sq = db.createObjectStore('sync-queue', { keyPath: 'id', autoIncrement: true });
+                        sq.createIndex('projectId', 'projectId', { unique: false });
+                        sq.createIndex('status', 'status', { unique: false });
+                    }
+                };
+                req.onsuccess = (e) => { _db = e.target.result; resolve(_db); };
+                req.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        function dbGet(store, key) {
+            return new Promise((resolve, reject) => {
+                const tx = _db.transaction(store, 'readonly');
+                const req = tx.objectStore(store).get(key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        function dbPut(store, data) {
+            return new Promise((resolve, reject) => {
+                const tx = _db.transaction(store, 'readwrite');
+                const req = tx.objectStore(store).put(data);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        function dbGetAll(store) {
+            return new Promise((resolve, reject) => {
+                const tx = _db.transaction(store, 'readonly');
+                const req = tx.objectStore(store).getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        function dbDelete(store, key) {
+            return new Promise((resolve, reject) => {
+                const tx = _db.transaction(store, 'readwrite');
+                const req = tx.objectStore(store).delete(key);
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        function dbGetByIndex(store, indexName, value) {
+            return new Promise((resolve, reject) => {
+                const tx = _db.transaction(store, 'readonly');
+                const idx = tx.objectStore(store).index(indexName);
+                const req = idx.getAll(value);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function migrateFromLocalStorage() {
+            const saved = localStorage.getItem('immokonzept_project_v2');
+            if (!saved) return;
+            try {
+                const data = JSON.parse(saved);
+                const id = 'proj_' + Date.now();
+                await dbPut('projects', {
+                    id: id,
+                    name: data.deckblatt?.adresse || 'Migriertes Projekt',
+                    created: new Date().toISOString(),
+                    modified: new Date().toISOString(),
+                    status: 'aktiv',
+                    data: data
+                });
+                // Migrate settings
+                const webhookUrl = localStorage.getItem('n8n_webhook_url');
+                if (webhookUrl) await dbPut('settings', { key: 'n8n_webhook_url', value: webhookUrl });
+                const airtableKey = localStorage.getItem('airtable_api_key');
+                if (airtableKey) await dbPut('settings', { key: 'airtable_api_key', value: airtableKey });
+                const airtableBase = localStorage.getItem('airtable_base_id');
+                if (airtableBase) await dbPut('settings', { key: 'airtable_base_id', value: airtableBase });
+                const airtableTable = localStorage.getItem('airtable_table_name');
+                if (airtableTable) await dbPut('settings', { key: 'airtable_table_name', value: airtableTable });
+
+                localStorage.removeItem('immokonzept_project_v2');
+                localStorage.removeItem('immokonzept_project');
+                activeProjectId = id;
+                showToast('Projekt aus localStorage migriert');
+            } catch (e) {
+                console.error('Migration failed:', e);
+            }
+        }
+
+        // ==================== AUTO-SAVE ====================
+
+        let _saveTimer = null;
+
+        function scheduleSave() {
+            updateSaveIndicator('unsaved');
+            clearTimeout(_saveTimer);
+            _saveTimer = setTimeout(() => saveProject(true), 500);
+        }
+
+        function updateSaveIndicator(state) {
+            const el = document.getElementById('saveIndicator');
+            if (!el) return;
+            el.className = 'save-indicator ' + state;
+            if (state === 'saved') el.textContent = 'Gespeichert';
+            else if (state === 'unsaved') el.textContent = 'Ungespeichert';
+            else if (state === 'saving') el.textContent = 'Speichert...';
+        }
+
+        // ==================== OFFLINE SYNC ====================
+
+        function buildExportPayload(data) {
+            // Reuse the same structure as exportJSON but return the object
+            const d = data.deckblatt || {};
+            const sklLabels = { 1: 'sehr gut', 2: 'gut', 3: 'mittel', 4: 'ausreichend', 5: 'mangelhaft' };
+            const sklToText = (skl) => sklLabels[skl] || 'nicht bewertet';
+
+            return {
+                _meta: {
+                    exportDatum: new Date().toISOString(),
+                    appVersion: '3.0',
+                    format: 'immokonzept-datenaufnahme',
+                    syncType: 'auto'
+                },
+                gebaeude: {
+                    adresse: d.adresse || '',
+                    projektnummer: d.projektnummer || '',
+                    gebaeudeArt: GEBAEUDEARTEN[d.gebaeudeArt] || d.gebaeudeArt || '',
+                    baujahr: d.baujahr || '',
+                    vollgeschosse: d.vollgeschosse || '',
+                    wohnflaeche_m2: d.wohnflaeche || '',
+                    nutzflaeche_m2: d.nutzflaeche || '',
+                    grundstueck_m2: d.grundstueck || '',
+                    bri_m3: d.bri || ''
+                },
+                geschosse: (data.geschosse || []).map(f => ({ id: f.id, name: f.name, kuerzel: f.kuerzel })),
+                maengel: data.maengel || [],
+                kostenpositionen: data.kostenpositionen || [],
+                _projectId: activeProjectId
+            };
+        }
+
+        async function queueSync(projectId) {
+            if (!_db) return;
+            try {
+                const syncUrl = await dbGet('settings', 'sync_webhook_url');
+                if (!syncUrl?.value) return; // No sync configured
+
+                await dbPut('sync-queue', {
+                    projectId: projectId,
+                    timestamp: new Date().toISOString(),
+                    type: 'project-update',
+                    payload: buildExportPayload(projectData),
+                    status: 'pending'
+                });
+                updateSyncBadge();
+                if (navigator.onLine) processSync();
+            } catch (e) {
+                console.error('Queue sync error:', e);
+            }
+        }
+
+        async function processSync() {
+            if (!_db || !navigator.onLine) return;
+            try {
+                const pending = await dbGetByIndex('sync-queue', 'status', 'pending');
+                if (pending.length === 0) return;
+
+                const syncUrl = await dbGet('settings', 'sync_webhook_url');
+                if (!syncUrl?.value) return;
+
+                for (const item of pending) {
+                    try {
+                        const resp = await fetch(syncUrl.value, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(item.payload)
+                        });
+                        if (resp.ok) {
+                            await dbDelete('sync-queue', item.id);
+                        }
+                    } catch (e) {
+                        console.warn('Sync failed for item', item.id, e);
+                    }
+                }
+                updateSyncBadge();
+            } catch (e) {
+                console.error('Process sync error:', e);
+            }
+        }
+
+        async function updateSyncBadge() {
+            const badge = document.getElementById('syncBadge');
+            if (!badge || !_db) return;
+            try {
+                const pending = await dbGetByIndex('sync-queue', 'status', 'pending');
+                if (pending.length > 0) {
+                    badge.textContent = pending.length + ' ausstehend';
+                    badge.classList.add('visible');
+                } else {
+                    badge.classList.remove('visible');
+                }
+            } catch (e) { badge.classList.remove('visible'); }
+        }
+
+        function requestBackgroundSync() {
+            if ('serviceWorker' in navigator && 'SyncManager' in window) {
+                navigator.serviceWorker.ready.then(reg => {
+                    reg.sync.register('sync-data').catch(() => {});
+                });
+            }
+        }
+
         // ==================== KONSTANTEN ====================
 
         // Gebäudearten nach ImmoWertV 2021
@@ -1051,12 +1381,22 @@
             stellplaetze: ['keine', 'im öffentlichen Verkehrsraum', 'auf Grundstück', 'Garage', 'Carport', 'Tiefgarage']
         };
 
-        // Airtable Konfiguration (ImmoKonzept Base)
+        // Airtable Konfiguration (ImmoKonzept Base) - wird async aus IDB aktualisiert
         const AIRTABLE_CONFIG = {
-            apiKey: localStorage.getItem('airtable_api_key') || '',  // Set via Settings or .env AIRTABLE_API_TOKEN
+            apiKey: localStorage.getItem('airtable_api_key') || '',
             baseId: localStorage.getItem('airtable_base_id') || 'appWaBDKXVuXwBGX5',
             tableName: localStorage.getItem('airtable_table_name') || 'Objekte'
         };
+
+        async function loadAirtableConfigFromIDB() {
+            if (!_db) return;
+            const key = await dbGet('settings', 'airtable_api_key');
+            const base = await dbGet('settings', 'airtable_base_id');
+            const table = await dbGet('settings', 'airtable_table_name');
+            if (key?.value) AIRTABLE_CONFIG.apiKey = key.value;
+            if (base?.value) AIRTABLE_CONFIG.baseId = base.value;
+            if (table?.value) AIRTABLE_CONFIG.tableName = table.value;
+        }
 
         // Kostenkatalog (aus BKI) mit DIN 276 Zuordnung
         const KOSTENKATALOG = {
@@ -1163,8 +1503,22 @@
             dach: { skl: 1 },
             fassaden: { nord: {}, ost: {}, sued: {}, west: {} },
             kostenpositionen: [],
-            objektdaten: {}
+            objektdaten: {},
+            maengel: []
         };
+
+        function getDefaultProjectData() {
+            return {
+                deckblatt: { gebaeudeArt: '' },
+                geschosse: [],
+                bauplaene: [],
+                dach: { skl: 1 },
+                fassaden: { nord: {}, ost: {}, sued: {}, west: {} },
+                kostenpositionen: [],
+                objektdaten: {},
+                maengel: []
+            };
+        }
 
         let currentPage = 'deckblatt';
         let currentFloorId = null;
@@ -1177,10 +1531,31 @@
 
         // ==================== INITIALISIERUNG ====================
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadProject();
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await openDB();
+                await migrateFromLocalStorage();
+                await loadAirtableConfigFromIDB();
+
+                // Check if there are projects - show project list or last project
+                const projects = await dbGetAll('projects');
+                if (projects.length === 1) {
+                    await openProject(projects[0].id);
+                } else if (projects.length > 1) {
+                    currentPage = 'projektliste';
+                } else {
+                    // No projects, try legacy load
+                    loadProjectLegacy();
+                }
+            } catch (e) {
+                console.warn('IDB init failed, using localStorage:', e);
+                loadProjectLegacy();
+            }
+
             renderNavigation();
             renderCurrentPage();
+            updateBottomActions();
+            updateSyncBadge();
 
             // Set today's date if empty
             setTimeout(() => {
@@ -1191,10 +1566,32 @@
             }, 100);
         });
 
-        // Offline detection
-        window.addEventListener('online', () => document.body.classList.remove('offline'));
+        // Offline detection + sync
+        window.addEventListener('online', () => {
+            document.body.classList.remove('offline');
+            processSync();
+        });
         window.addEventListener('offline', () => document.body.classList.add('offline'));
         if (!navigator.onLine) document.body.classList.add('offline');
+
+        // Auto-save on visibility change / beforeunload
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && activeProjectId) {
+                clearTimeout(_saveTimer);
+                saveProject(true);
+            }
+        });
+        window.addEventListener('beforeunload', () => {
+            if (activeProjectId) {
+                clearTimeout(_saveTimer);
+                saveProject(true);
+            }
+        });
+
+        function updateBottomActions() {
+            const ba = document.getElementById('bottomActions');
+            if (ba) ba.style.display = activeProjectId ? 'flex' : 'none';
+        }
 
         // ==================== NAVIGATION ====================
 
@@ -1202,31 +1599,40 @@
             const nav = document.getElementById('navTabs');
             let html = '';
 
-            // Deckblatt
-            html += `<li><a href="#" class="${currentPage === 'deckblatt' ? 'active' : ''}" onclick="navigateTo('deckblatt')">Deckblatt</a></li>`;
+            // Projekte Tab (immer sichtbar)
+            html += `<li><a href="#" class="${currentPage === 'projektliste' ? 'active' : ''}" onclick="navigateTo('projektliste')">Projekte</a></li>`;
 
-            // Objektdaten (NEU)
-            html += `<li><a href="#" class="${currentPage === 'objektdaten' ? 'active' : ''}" onclick="navigateTo('objektdaten')">Objekt</a></li>`;
+            if (activeProjectId) {
+                // Deckblatt
+                html += `<li><a href="#" class="${currentPage === 'deckblatt' ? 'active' : ''}" onclick="navigateTo('deckblatt')">Deckblatt</a></li>`;
 
-            // Pläne
-            html += `<li><a href="#" class="${currentPage === 'plaene' ? 'active' : ''}" onclick="navigateTo('plaene')">Pläne</a></li>`;
+                // Objektdaten
+                html += `<li><a href="#" class="${currentPage === 'objektdaten' ? 'active' : ''}" onclick="navigateTo('objektdaten')">Objekt</a></li>`;
 
-            // Fassade
-            html += `<li><a href="#" class="${currentPage === 'fassade' ? 'active' : ''}" onclick="navigateTo('fassade')">Fassade</a></li>`;
+                // Pläne
+                html += `<li><a href="#" class="${currentPage === 'plaene' ? 'active' : ''}" onclick="navigateTo('plaene')">Pläne</a></li>`;
 
-            // Dynamische Geschosse
-            projectData.geschosse.forEach(g => {
-                html += `<li><a href="#" class="${currentPage === 'geschoss_' + g.id ? 'active' : ''}" onclick="navigateTo('geschoss_${g.id}')">${g.kuerzel}</a></li>`;
-            });
+                // Fassade
+                html += `<li><a href="#" class="${currentPage === 'fassade' ? 'active' : ''}" onclick="navigateTo('fassade')">Fassade</a></li>`;
 
-            // + Geschoss Button
-            html += `<li><button class="nav-btn add-floor-btn" onclick="openFloorModal()">+ Geschoss</button></li>`;
+                // Dynamische Geschosse
+                projectData.geschosse.forEach(g => {
+                    html += `<li><a href="#" class="${currentPage === 'geschoss_' + g.id ? 'active' : ''}" onclick="navigateTo('geschoss_${g.id}')">${g.kuerzel}</a></li>`;
+                });
 
-            // Dach
-            html += `<li><a href="#" class="${currentPage === 'dach' ? 'active' : ''}" onclick="navigateTo('dach')">Dach</a></li>`;
+                // + Geschoss Button
+                html += `<li><button class="nav-btn add-floor-btn" onclick="openFloorModal()">+ Geschoss</button></li>`;
 
-            // Kosten
-            html += `<li><a href="#" class="${currentPage === 'kosten' ? 'active' : ''}" onclick="navigateTo('kosten')">Kosten</a></li>`;
+                // Dach
+                html += `<li><a href="#" class="${currentPage === 'dach' ? 'active' : ''}" onclick="navigateTo('dach')">Dach</a></li>`;
+
+                // Kosten
+                html += `<li><a href="#" class="${currentPage === 'kosten' ? 'active' : ''}" onclick="navigateTo('kosten')">Kosten</a></li>`;
+
+                // Maengel
+                const maengelCount = getMaengelCount();
+                html += `<li><a href="#" class="${currentPage === 'maengel' ? 'active' : ''}" onclick="navigateTo('maengel')">Mängel${maengelCount > 0 ? `<span class="nav-badge">${maengelCount}</span>` : ''}</a></li>`;
+            }
 
             nav.innerHTML = html;
         }
@@ -1239,11 +1645,11 @@
             window.scrollTo(0, 0);
         }
 
-        // Navigation: Alle Seiten in Reihenfolge
+        // Navigation: Alle Seiten in Reihenfolge (projektliste ist Meta-Seite, nicht in Pfeil-Nav)
         function getPageOrder() {
             const pages = ['deckblatt', 'objektdaten', 'plaene', 'fassade'];
             projectData.geschosse.forEach(g => pages.push('geschoss_' + g.id));
-            pages.push('dach', 'kosten');
+            pages.push('dach', 'kosten', 'maengel');
             return pages;
         }
 
@@ -1274,6 +1680,7 @@
                 if (page === 'fassade') return 'Fassade';
                 if (page === 'dach') return 'Dach';
                 if (page === 'kosten') return 'Kosten';
+                if (page === 'maengel') return 'Mängel';
                 if (page.startsWith('geschoss_')) {
                     const floor = projectData.geschosse.find(g => g.id === page.replace('geschoss_', ''));
                     return floor ? floor.kuerzel : page;
@@ -1303,7 +1710,10 @@
 
             let content = '';
 
-            if (currentPage === 'deckblatt') {
+            if (currentPage === 'projektliste') {
+                renderProjektliste();
+                return;
+            } else if (currentPage === 'deckblatt') {
                 content = renderDeckblatt();
                 main.innerHTML = content + renderNavigationArrows();
                 loadDeckblattData();
@@ -1328,6 +1738,9 @@
                 loadFassadeData();
             } else if (currentPage === 'kosten') {
                 content = renderKosten();
+                main.innerHTML = content + renderNavigationArrows();
+            } else if (currentPage === 'maengel') {
+                content = renderMaengel();
                 main.innerHTML = content + renderNavigationArrows();
             }
         }
@@ -1477,7 +1890,7 @@
             };
 
             document.getElementById('projectName').textContent = projectData.deckblatt.adresse || 'Kein Projekt geladen';
-            saveProject(true);
+            scheduleSave();
         }
 
         function saveObjektordnerLink() {
@@ -1485,7 +1898,7 @@
                 ...projectData.deckblatt,
                 objektordnerLink: document.getElementById('objektordnerLink')?.value || ''
             };
-            saveProject(true);
+            scheduleSave();
             showToast('Objektordner-Link gespeichert');
         }
 
@@ -1729,7 +2142,7 @@
             }
             projectData.objektdaten[id + '_punkte'] = berechnete;
 
-            saveProject(true);
+            scheduleSave();
             updateModernisierungsSumme();
         }
 
@@ -1747,7 +2160,7 @@
             punkteInput.style.borderColor = '#28a745'; // Grün = manuell angepasst
 
             projectData.objektdaten[id + '_punkte'] = validPunkte;
-            saveProject(true);
+            scheduleSave();
             updateModernisierungsSumme();
         }
 
@@ -1802,7 +2215,7 @@
         function saveModBemerkung() {
             if (!projectData.objektdaten) projectData.objektdaten = {};
             projectData.objektdaten.mod_grundriss_bemerkung = document.getElementById('mod_grundriss_bemerkung')?.value || '';
-            saveProject(true);
+            scheduleSave();
         }
 
         function loadObjektdaten() {
@@ -1903,7 +2316,7 @@
                 zustand: getVal('obj_zustand')
             };
 
-            saveProject(true);
+            scheduleSave();
         }
 
         // ==================== PLÄNE ====================
@@ -2029,7 +2442,7 @@
                 };
 
                 projectData.bauplaene.push(plan);
-                saveProject();
+                scheduleSave();
                 closePlanModal();
                 renderCurrentPage();
                 showToast('Plan gespeichert');
@@ -2080,7 +2493,7 @@
             // Geschosse nach logischer Reihenfolge sortieren
             sortGeschosse();
 
-            saveProject();
+            scheduleSave();
             closeFloorModal();
             renderNavigation();
             navigateTo('geschoss_' + floor.id);
@@ -2120,7 +2533,7 @@
             };
 
             projectData.geschosse.push(floor);
-            saveProject();
+            scheduleSave();
             closeFloorModal();
             renderNavigation();
             navigateTo('geschoss_' + floor.id);
@@ -2138,7 +2551,7 @@
 
             if (confirm(confirmMsg)) {
                 projectData.geschosse = projectData.geschosse.filter(g => g.id !== floorId);
-                saveProject();
+                scheduleSave();
                 navigateTo('deckblatt');
                 showToast('Geschoss gelöscht');
             }
@@ -2321,7 +2734,7 @@
                 (unit.raeume || []).forEach(setRoomSkl);
             });
 
-            saveProject(true);
+            scheduleSave();
             renderCurrentPage();
             showToast(`SKL ${skl} auf ${count} Räume in ${floor.kuerzel} angewendet`);
         }
@@ -2390,7 +2803,7 @@
             if (!floor) return;
 
             floor.einheiten[typ] = parseInt(value) || 0;
-            saveProject(true);
+            scheduleSave();
             renderCurrentPage();
         }
 
@@ -2420,7 +2833,7 @@
                 }
             }
 
-            saveProject(true);
+            scheduleSave();
             renderCurrentPage();
             showToast(`${name} hinzugefügt`);
         }
@@ -2441,7 +2854,7 @@
                 }
             }
 
-            saveProject(true);
+            scheduleSave();
             renderCurrentPage();
         }
 
@@ -2650,7 +3063,7 @@
             }
 
             closeRoomModal();
-            saveProject();
+            scheduleSave();
             renderCurrentPage();
             showToast('Raum gespeichert');
         }
@@ -2747,7 +3160,7 @@
                 zustand: document.getElementById('dachZustand')?.value || '',
                 skl: sklBtn ? parseInt(sklBtn.dataset.skl) : 1
             };
-            saveProject(true);
+            scheduleSave();
         }
 
         // ==================== FASSADE ====================
@@ -2847,7 +3260,7 @@
                 zustand: document.getElementById('fassadeZustand')?.value || '',
                 skl: sklBtn ? parseInt(sklBtn.dataset.skl) : 1
             };
-            saveProject(true);
+            scheduleSave();
         }
 
         // ==================== KOSTEN ====================
@@ -3045,7 +3458,7 @@
             }
 
             projectData.kostenpositionen.push({ typ, menge, skl });
-            saveProject();
+            scheduleSave();
 
             // Formular zurücksetzen
             document.getElementById('kostenTyp').value = '';
@@ -3060,7 +3473,7 @@
         function deleteKostenposition(idx) {
             if (confirm('Position löschen?')) {
                 projectData.kostenpositionen.splice(idx, 1);
-                saveProject();
+                scheduleSave();
                 renderCurrentPage();
             }
         }
@@ -3121,7 +3534,7 @@
 
         function closePlanViewer() {
             document.getElementById('planViewer').classList.remove('active');
-            saveProject();
+            scheduleSave();
         }
 
         function initCanvas() {
@@ -3287,7 +3700,7 @@
             document.getElementById('airtableModal').classList.remove('active');
         }
 
-        function saveAirtableSettings() {
+        async function saveAirtableSettings() {
             const apiKey = document.getElementById('airtableApiKey').value.trim();
             const baseId = document.getElementById('airtableBaseId').value.trim();
             const tableName = document.getElementById('airtableTableName').value.trim() || 'Objekte';
@@ -3299,6 +3712,13 @@
             localStorage.setItem('airtable_api_key', apiKey);
             localStorage.setItem('airtable_base_id', baseId);
             localStorage.setItem('airtable_table_name', tableName);
+
+            // Also save to IDB
+            try {
+                await dbPut('settings', { key: 'airtable_api_key', value: apiKey });
+                await dbPut('settings', { key: 'airtable_base_id', value: baseId });
+                await dbPut('settings', { key: 'airtable_table_name', value: tableName });
+            } catch(e) {}
 
             closeAirtableModal();
             renderCurrentPage();
@@ -3422,7 +3842,7 @@
                 }
 
                 mapAirtableToProject(record.fields, record.id, projektId);
-                saveProject();
+                scheduleSave();
                 renderCurrentPage();
                 showToast('Objekt geladen: ' + (record.fields['Straße'] || record.fields.Adresse || recordId));
             } else {
@@ -3476,7 +3896,7 @@
 
                 const record = await response.json();
                 mapAirtableToProject(record.fields, record.id);
-                saveProject();
+                scheduleSave();
                 renderCurrentPage();
                 showToast('Projekt aus Airtable geladen');
             } catch (err) {
@@ -3537,23 +3957,61 @@
 
         // ==================== SPEICHERN & LADEN ====================
 
-        function saveProject(silent = false) {
-            localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData));
-            if (!silent) showToast('Projekt gespeichert');
+        async function saveProject(silent = false) {
+            updateSaveIndicator('saving');
+            try {
+                if (_db && activeProjectId) {
+                    const proj = await dbGet('projects', activeProjectId);
+                    if (proj) {
+                        proj.data = projectData;
+                        proj.modified = new Date().toISOString();
+                        proj.name = projectData.deckblatt?.adresse || proj.name || 'Unbenannt';
+                        await dbPut('projects', proj);
+                    }
+                    // Queue sync
+                    queueSync(activeProjectId);
+                } else {
+                    // Fallback localStorage
+                    localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData));
+                }
+                updateSaveIndicator('saved');
+                if (!silent) showToast('Projekt gespeichert');
+            } catch (e) {
+                console.error('Save error:', e);
+                // Fallback
+                localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData));
+                updateSaveIndicator('saved');
+                if (!silent) showToast('Gespeichert (localStorage Fallback)');
+            }
         }
 
-        function loadProject() {
-            // Try new format first
+        async function loadProject(projectId) {
+            if (!_db) { loadProjectLegacy(); return; }
+            try {
+                const proj = await dbGet('projects', projectId);
+                if (proj && proj.data) {
+                    projectData = proj.data;
+                    if (!projectData.kostenpositionen) projectData.kostenpositionen = [];
+                    if (!projectData.objektdaten) projectData.objektdaten = {};
+                    if (!projectData.maengel) projectData.maengel = [];
+                    activeProjectId = projectId;
+                    document.getElementById('projectName').textContent = projectData.deckblatt?.adresse || proj.name || 'Projekt';
+                }
+            } catch (e) {
+                console.error('Load error:', e);
+                loadProjectLegacy();
+            }
+        }
+
+        function loadProjectLegacy() {
             let saved = localStorage.getItem('immokonzept_project_v2');
             if (saved) {
                 projectData = JSON.parse(saved);
-                // Sicherstellen dass neue Felder existieren
                 if (!projectData.kostenpositionen) projectData.kostenpositionen = [];
                 if (!projectData.objektdaten) projectData.objektdaten = {};
+                if (!projectData.maengel) projectData.maengel = [];
                 return;
             }
-
-            // Migrate from old format
             saved = localStorage.getItem('immokonzept_project');
             if (saved) {
                 const oldData = JSON.parse(saved);
@@ -3564,17 +4022,13 @@
         }
 
         function migrateOldData(oldData) {
-            // Deckblatt übernehmen
             projectData.deckblatt = oldData.deckblatt || {};
-
-            // Alte feste Geschosse in Array konvertieren
             const oldFloors = {
                 'keller': { name: 'Kellergeschoss', kuerzel: 'KG' },
                 'eg': { name: 'Erdgeschoss', kuerzel: 'EG' },
                 'og1': { name: '1. Obergeschoss', kuerzel: '1.OG' },
                 'dg': { name: 'Dachgeschoss', kuerzel: 'DG' }
             };
-
             if (oldData.raeume) {
                 Object.entries(oldFloors).forEach(([key, info]) => {
                     if (oldData.raeume[key] && oldData.raeume[key].length > 0) {
@@ -3587,12 +4041,604 @@
                     }
                 });
             }
-
-            // Dach und Fassaden übernehmen
             projectData.dach = oldData.dach || { skl: 1 };
             projectData.fassaden = oldData.fassaden || { nord: {}, ost: {}, sued: {}, west: {} };
-
             showToast('Projekt wurde in neues Format migriert');
+        }
+
+        // ==================== MULTI-PROJEKT VERWALTUNG ====================
+
+        async function renderProjektliste() {
+            const main = document.getElementById('mainContent');
+            let projects = [];
+            try {
+                if (_db) projects = await dbGetAll('projects');
+            } catch (e) { console.error(e); }
+
+            // Sort by modified date descending
+            projects.sort((a, b) => new Date(b.modified || 0) - new Date(a.modified || 0));
+
+            let cardsHtml = '';
+            if (projects.length === 0) {
+                cardsHtml = `
+                    <div class="empty-state">
+                        <div class="icon">📋</div>
+                        <h3>Keine Projekte</h3>
+                        <p>Erstellen Sie ein neues Projekt oder importieren Sie eine JSON-Datei.</p>
+                    </div>`;
+            } else {
+                cardsHtml = projects.map(p => {
+                    const d = p.data?.deckblatt || {};
+                    const floors = p.data?.geschosse?.length || 0;
+                    const kosten = p.data?.kostenpositionen?.length || 0;
+                    const modified = p.modified ? new Date(p.modified).toLocaleDateString('de-DE') : '-';
+                    const isActive = p.id === activeProjectId;
+                    return `
+                        <div class="project-card ${isActive ? 'active-project' : ''}" onclick="openProject('${p.id}')">
+                            <h3>${d.adresse || p.name || 'Unbenannt'}</h3>
+                            <div class="project-meta">
+                                ${d.projektnummer ? `${d.projektnummer} · ` : ''}${floors} Geschosse · ${kosten} Kosten · ${modified}
+                            </div>
+                            <div class="project-actions" onclick="event.stopPropagation()">
+                                <button class="btn btn-outline btn-sm" onclick="duplicateProject('${p.id}')">Kopie</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">Löschen</button>
+                            </div>
+                        </div>`;
+                }).join('');
+            }
+
+            // Sync URL setting
+            let syncUrl = '';
+            try {
+                const s = await dbGet('settings', 'sync_webhook_url');
+                syncUrl = s?.value || '';
+            } catch(e) {}
+
+            main.innerHTML = `
+                <div class="card">
+                    <h2>Projekte</h2>
+                    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                        <button class="btn btn-primary" onclick="createNewProject()" style="flex:1;">+ Neues Projekt</button>
+                        <button class="btn btn-outline" onclick="importProjectFromJSON()" style="flex:1;">JSON Import</button>
+                    </div>
+                    ${cardsHtml}
+                </div>
+                <div class="card">
+                    <h2>Sync-Einstellungen</h2>
+                    <div class="form-group">
+                        <label>n8n Webhook URL für Auto-Sync</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="syncWebhookUrl" placeholder="https://n8n.../webhook/sync" value="${escapeHtml(syncUrl)}" style="flex:1;">
+                            <button class="btn btn-outline" onclick="saveSyncUrl()">Speichern</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        async function createNewProject() {
+            if (!_db) { showToast('Datenbank nicht verfügbar'); return; }
+            // Save current project first
+            if (activeProjectId) await saveProject(true);
+
+            const id = 'proj_' + Date.now();
+            const newData = getDefaultProjectData();
+            await dbPut('projects', {
+                id: id,
+                name: 'Neues Projekt',
+                created: new Date().toISOString(),
+                modified: new Date().toISOString(),
+                status: 'aktiv',
+                data: newData
+            });
+            await openProject(id);
+            showToast('Neues Projekt erstellt');
+        }
+
+        async function openProject(id) {
+            if (activeProjectId && activeProjectId !== id) {
+                await saveProject(true);
+            }
+            await loadProject(id);
+            currentPage = 'deckblatt';
+            renderNavigation();
+            renderCurrentPage();
+            updateBottomActions();
+        }
+
+        async function deleteProject(id) {
+            if (!confirm('Projekt wirklich löschen? Dies kann nicht rückgängig gemacht werden.')) return;
+            try {
+                await dbDelete('projects', id);
+                if (activeProjectId === id) {
+                    activeProjectId = null;
+                    projectData = getDefaultProjectData();
+                    document.getElementById('projectName').textContent = 'Kein Projekt geladen';
+                    updateBottomActions();
+                }
+                currentPage = 'projektliste';
+                renderNavigation();
+                renderCurrentPage();
+                showToast('Projekt gelöscht');
+            } catch (e) {
+                showToast('Fehler: ' + e.message);
+            }
+        }
+
+        async function duplicateProject(id) {
+            try {
+                const orig = await dbGet('projects', id);
+                if (!orig) return;
+                const newId = 'proj_' + Date.now();
+                const copy = JSON.parse(JSON.stringify(orig.data));
+                await dbPut('projects', {
+                    id: newId,
+                    name: (orig.name || 'Projekt') + ' (Kopie)',
+                    created: new Date().toISOString(),
+                    modified: new Date().toISOString(),
+                    status: 'aktiv',
+                    data: copy
+                });
+                currentPage = 'projektliste';
+                renderCurrentPage();
+                showToast('Projekt dupliziert');
+            } catch (e) {
+                showToast('Fehler: ' + e.message);
+            }
+        }
+
+        function importProjectFromJSON() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    // Check if it's an export (has _meta) or raw projectData
+                    let projData;
+                    if (data._meta && data._meta.format === 'immokonzept-datenaufnahme') {
+                        // This is an export, reconstruct projectData
+                        projData = getDefaultProjectData();
+                        if (data.gebaeude) {
+                            projData.deckblatt = {
+                                adresse: data.gebaeude.adresse,
+                                projektnummer: data.gebaeude.projektnummer,
+                                gebaeudeArt: data.gebaeude.gebaeudeArt,
+                                baujahr: data.gebaeude.baujahr,
+                                vollgeschosse: data.gebaeude.vollgeschosse,
+                                wohnflaeche: data.gebaeude.wohnflaeche_m2,
+                                nutzflaeche: data.gebaeude.nutzflaeche_m2,
+                                grundstueck: data.gebaeude.grundstueck_m2,
+                                bri: data.gebaeude.bri_m3
+                            };
+                        }
+                        showToast('Export-Datei importiert (Grunddaten)');
+                    } else if (data.deckblatt) {
+                        // Raw projectData
+                        projData = data;
+                    } else {
+                        showToast('Unbekanntes Dateiformat');
+                        return;
+                    }
+                    const id = 'proj_' + Date.now();
+                    await dbPut('projects', {
+                        id: id,
+                        name: projData.deckblatt?.adresse || file.name.replace('.json', ''),
+                        created: new Date().toISOString(),
+                        modified: new Date().toISOString(),
+                        status: 'aktiv',
+                        data: projData
+                    });
+                    currentPage = 'projektliste';
+                    renderCurrentPage();
+                    showToast('Projekt importiert');
+                } catch (err) {
+                    showToast('Import-Fehler: ' + err.message);
+                }
+            };
+            input.click();
+        }
+
+        async function saveSyncUrl() {
+            const url = document.getElementById('syncWebhookUrl')?.value?.trim() || '';
+            try {
+                await dbPut('settings', { key: 'sync_webhook_url', value: url });
+                showToast(url ? 'Sync-URL gespeichert' : 'Sync deaktiviert');
+            } catch (e) {
+                showToast('Fehler: ' + e.message);
+            }
+        }
+
+        // ==================== MÄNGELLISTE ====================
+
+        function getMaengelCount() {
+            const manual = (projectData.maengel || []).length;
+            const auto = collectRoomMaengel().length;
+            return manual + auto;
+        }
+
+        function collectRoomMaengel() {
+            const result = [];
+            (projectData.geschosse || []).forEach(floor => {
+                const checkRoom = (room) => {
+                    if (room.bemerkung && room.bemerkung.trim()) {
+                        result.push({
+                            geschossId: floor.id,
+                            geschossName: floor.kuerzel || floor.name,
+                            raum: room.name || room.nummer || 'Unbenannt',
+                            beschreibung: room.bemerkung,
+                            quelle: 'raum-bemerkung'
+                        });
+                    }
+                };
+                if (floor.allgemein) floor.allgemein.forEach(checkRoom);
+                if (floor.units) floor.units.forEach(u => (u.raeume || []).forEach(checkRoom));
+                if (floor.raeume) floor.raeume.forEach(checkRoom);
+            });
+            return result;
+        }
+
+        function renderMaengel() {
+            if (!projectData.maengel) projectData.maengel = [];
+            const manual = projectData.maengel;
+            const auto = collectRoomMaengel();
+
+            // Geschoss options for form
+            const geschossOpts = projectData.geschosse.map(g =>
+                `<option value="${g.id}" data-name="${g.kuerzel}">${g.kuerzel} - ${g.name}</option>`
+            ).join('');
+
+            // Manual list
+            const manualHtml = manual.length > 0 ? manual.map((m, idx) => `
+                <div class="mangel-card prio-${m.prioritaet}">
+                    <div>
+                        <strong>${m.geschossName || '-'}</strong> · ${m.raum || '-'}
+                        <br><span style="font-size:0.9rem;">${m.beschreibung}</span>
+                        <br><span class="mangel-prio ${m.prioritaet}">${m.prioritaet}</span>
+                        ${m.kostenschaetzung ? `<span style="margin-left:8px;font-size:0.85rem;color:var(--text-light);">${Number(m.kostenschaetzung).toLocaleString('de-DE')} €</span>` : ''}
+                    </div>
+                    <button class="btn btn-danger btn-sm" onclick="deleteMangel(${idx})">✕</button>
+                </div>
+            `).join('') : '<p style="color:var(--text-light);text-align:center;padding:10px;">Keine manuellen Mängel erfasst</p>';
+
+            // Auto list
+            const autoHtml = auto.length > 0 ? auto.map(m => `
+                <div class="mangel-auto">
+                    <strong>${m.geschossName}</strong> · ${m.raum}: ${m.beschreibung}
+                </div>
+            `).join('') : '<p style="color:var(--text-light);text-align:center;padding:10px;">Keine Bemerkungen in Räumen</p>';
+
+            return `
+                <div class="card">
+                    <h2>Mangel erfassen</h2>
+                    <div class="form-group">
+                        <label>Geschoss</label>
+                        <select id="mangelGeschoss">
+                            <option value="">-- wählen --</option>
+                            ${geschossOpts}
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Raum</label>
+                            <input type="text" id="mangelRaum" placeholder="z.B. Wohnzimmer">
+                        </div>
+                        <div class="form-group">
+                            <label>Priorität</label>
+                            <select id="mangelPrio">
+                                <option value="niedrig">Niedrig</option>
+                                <option value="mittel" selected>Mittel</option>
+                                <option value="hoch">Hoch</option>
+                                <option value="kritisch">Kritisch</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Beschreibung</label>
+                        <textarea id="mangelBeschreibung" placeholder="Mangel beschreiben..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Kostenschätzung (optional, €)</label>
+                        <input type="number" id="mangelKosten" placeholder="z.B. 2500">
+                    </div>
+                    <button class="btn btn-primary btn-block" onclick="addMangel()">+ Mangel hinzufügen</button>
+                </div>
+
+                <div class="card">
+                    <h2>Manuelle Mängel (${manual.length})</h2>
+                    ${manualHtml}
+                </div>
+
+                <div class="card">
+                    <h2>Auto-gesammelt aus Raum-Bemerkungen (${auto.length})</h2>
+                    ${autoHtml}
+                </div>
+            `;
+        }
+
+        function addMangel() {
+            const geschossSelect = document.getElementById('mangelGeschoss');
+            const geschossId = geschossSelect?.value || '';
+            const geschossName = geschossSelect?.selectedOptions[0]?.dataset?.name || '';
+            const raum = document.getElementById('mangelRaum')?.value || '';
+            const beschreibung = document.getElementById('mangelBeschreibung')?.value?.trim() || '';
+            const prioritaet = document.getElementById('mangelPrio')?.value || 'mittel';
+            const kostenschaetzung = parseFloat(document.getElementById('mangelKosten')?.value) || 0;
+
+            if (!beschreibung) {
+                showToast('Bitte Beschreibung eingeben');
+                return;
+            }
+
+            if (!projectData.maengel) projectData.maengel = [];
+            projectData.maengel.push({
+                id: 'mangel_' + Date.now(),
+                geschossId,
+                geschossName,
+                raum,
+                beschreibung,
+                prioritaet,
+                kostenschaetzung: kostenschaetzung || null,
+                quelle: 'manuell'
+            });
+
+            scheduleSave();
+            renderNavigation();
+            renderCurrentPage();
+            showToast('Mangel hinzugefügt');
+        }
+
+        function deleteMangel(idx) {
+            if (!confirm('Mangel löschen?')) return;
+            projectData.maengel.splice(idx, 1);
+            scheduleSave();
+            renderNavigation();
+            renderCurrentPage();
+        }
+
+        // ==================== PDF EXPORT VIA GOTENBERG ====================
+
+        async function exportPDF() {
+            // Get Gotenberg URL from settings
+            let gotenbergUrl = '';
+            try {
+                const s = await dbGet('settings', 'gotenberg_url');
+                gotenbergUrl = s?.value || '';
+            } catch(e) {}
+
+            if (!gotenbergUrl) {
+                gotenbergUrl = prompt('Gotenberg URL eingeben (z.B. http://localhost:3001):', 'http://localhost:3001');
+                if (!gotenbergUrl) return;
+                try {
+                    await dbPut('settings', { key: 'gotenberg_url', value: gotenbergUrl });
+                } catch(e) {}
+            }
+
+            showToast('PDF wird erstellt...');
+            const html = buildPdfHtml();
+
+            try {
+                const formData = new FormData();
+                const blob = new Blob([html], { type: 'text/html' });
+                formData.append('files', blob, 'index.html');
+                formData.append('marginTop', '0.6');
+                formData.append('marginBottom', '0.8');
+                formData.append('marginLeft', '0.8');
+                formData.append('marginRight', '0.8');
+                formData.append('paperWidth', '8.27');
+                formData.append('paperHeight', '11.69');
+
+                const resp = await fetch(gotenbergUrl + '/forms/chromium/convert/html', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!resp.ok) throw new Error('Gotenberg Fehler: ' + resp.status);
+
+                const pdfBlob = await resp.blob();
+                const url = URL.createObjectURL(pdfBlob);
+                const a = document.createElement('a');
+                const d = projectData.deckblatt;
+                a.href = url;
+                a.download = `Datenaufnahme_${d.projektnummer || 'Export'}_${new Date().toISOString().split('T')[0]}.pdf`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('PDF heruntergeladen');
+            } catch (e) {
+                showToast('PDF-Fehler: ' + e.message);
+            }
+        }
+
+        function buildPdfHtml() {
+            const d = projectData.deckblatt || {};
+            const sklLabels = { 1: 'sehr gut (1)', 2: 'gut (2)', 3: 'mittel (3)', 4: 'ausreichend (4)', 5: 'mangelhaft (5)' };
+            const sklColors = { 1: '#48bb78', 2: '#68d391', 3: '#ecc94b', 4: '#ed8936', 5: '#e53e3e' };
+            const sklBadge = (skl) => skl ? `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.8rem;font-weight:600;background:${sklColors[skl]};color:${skl===3?'#744210':'white'};">${sklLabels[skl] || skl}</span>` : '-';
+
+            // Cover
+            let html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
+            <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+            <style>
+                :root { --petrol: #0984E3; --anthrazit: #2D3436; --success: #00B894; --warning: #FDCB6E; --danger: #D63031; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Source Sans Pro', sans-serif; color: var(--anthrazit); font-size: 10pt; line-height: 1.5; }
+                h1 { font-size: 20pt; color: var(--petrol); margin-bottom: 6px; }
+                h2 { font-size: 13pt; color: var(--petrol); border-left: 3pt solid var(--petrol); padding-left: 10px; margin: 16px 0 8px; background: #f8f9fa; padding: 6px 10px; }
+                h3 { font-size: 11pt; color: var(--anthrazit); margin: 10px 0 4px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+                th { background: var(--petrol); color: white; text-align: left; padding: 6px 10px; font-size: 9pt; }
+                td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 9pt; }
+                tr:nth-child(even) { background: #f7fafc; }
+                .cover { text-align: center; padding: 80px 40px 40px; page-break-after: always; }
+                .cover .brand { background: linear-gradient(135deg, #1a365d, #2c5282); color: white; padding: 40px; border-radius: 8px; margin-bottom: 30px; }
+                .cover .brand h1 { color: white; font-size: 28pt; }
+                .cover .info-table td { border: none; padding: 4px 12px; font-size: 11pt; }
+                .cover .info-table td:first-child { font-weight: 600; color: #718096; text-align: right; width: 40%; }
+                .section { page-break-inside: avoid; margin-bottom: 12px; }
+                .floor-break { page-break-before: always; }
+                .mangel-row td:first-child { font-weight: 600; }
+                .prio-badge { display:inline-block; padding:1px 6px; border-radius:3px; font-size:8pt; font-weight:600; }
+                .prio-niedrig { background:#c6f6d5; color:#276749; }
+                .prio-mittel { background:#fefcbf; color:#744210; }
+                .prio-hoch { background:#feebc8; color:#7b341e; }
+                .prio-kritisch { background:#fed7d7; color:#9b2c2c; }
+                .total-row { background: var(--petrol) !important; color: white; font-weight: 700; }
+                .total-row td { color: white; border-bottom: none; }
+            </style></head><body>`;
+
+            // Cover page
+            html += `<div class="cover">
+                <div class="brand">
+                    <h1>ImmoKonzept</h1>
+                    <p style="font-size:14pt;opacity:0.9;">Datenaufnahme - Besichtigungsprotokoll</p>
+                </div>
+                <table class="info-table" style="margin:0 auto;max-width:400px;">
+                    <tr><td>Adresse</td><td>${escapeHtml(d.adresse || '-')}</td></tr>
+                    <tr><td>Projektnr.</td><td>${escapeHtml(d.projektnummer || '-')}</td></tr>
+                    <tr><td>Datum</td><td>${escapeHtml(d.datum || '-')}</td></tr>
+                    <tr><td>Uhrzeit</td><td>${escapeHtml((d.uhrzeitVon || '') + (d.uhrzeitBis ? ' - ' + d.uhrzeitBis : ''))}</td></tr>
+                    <tr><td>Beteiligte</td><td>${escapeHtml(d.beteiligte || '-')}</td></tr>
+                    <tr><td>Gebäudeart</td><td>${escapeHtml(GEBAEUDEARTEN[d.gebaeudeArt] || d.gebaeudeArt || '-')}</td></tr>
+                    <tr><td>Baujahr</td><td>${escapeHtml(d.baujahr || '-')}</td></tr>
+                </table>
+                <p style="margin-top:30px;font-size:9pt;color:#718096;">Erstellt am ${new Date().toLocaleDateString('de-DE')} · App Version 3.0</p>
+            </div>`;
+
+            // Allgemeine Objektdaten
+            html += `<h2>Allgemeine Objektdaten</h2>
+            <div class="section"><table>
+                <tr><td style="width:40%;font-weight:600;">Gebäudeart</td><td>${escapeHtml(GEBAEUDEARTEN[d.gebaeudeArt] || d.gebaeudeArt || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Baujahr</td><td>${escapeHtml(d.baujahr || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Vollgeschosse</td><td>${escapeHtml(d.vollgeschosse || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Wohnfläche</td><td>${d.wohnflaeche ? d.wohnflaeche + ' m²' : '-'}</td></tr>
+                <tr><td style="font-weight:600;">Nutzfläche</td><td>${d.nutzflaeche ? d.nutzflaeche + ' m²' : '-'}</td></tr>
+                <tr><td style="font-weight:600;">Grundstück</td><td>${d.grundstueck ? d.grundstueck + ' m²' : '-'}</td></tr>
+                <tr><td style="font-weight:600;">BRI</td><td>${d.bri ? d.bri + ' m³' : '-'}</td></tr>
+            </table></div>`;
+
+            // Geschosse
+            projectData.geschosse.forEach((floor, fi) => {
+                html += `<div class="${fi > 0 ? 'floor-break' : ''}">`;
+                html += `<h2>${escapeHtml(floor.name || floor.kuerzel)}</h2>`;
+
+                const renderRoomTable = (rooms, label) => {
+                    if (!rooms || rooms.length === 0) return '';
+                    let t = label ? `<h3>${escapeHtml(label)}</h3>` : '';
+                    t += `<table><tr><th>Raum</th><th>Fläche</th><th>Bemerkungen</th></tr>`;
+                    rooms.forEach(room => {
+                        t += `<tr><td style="font-weight:600;">${escapeHtml(room.name || room.nummer || '-')}</td>
+                            <td>${room.flaeche ? room.flaeche + ' m²' : '-'}</td>
+                            <td>${escapeHtml(room.bemerkung || '-')}</td></tr>`;
+                        // Bauteile
+                        if (room.bauteile && Object.keys(room.bauteile).length > 0) {
+                            Object.entries(room.bauteile).forEach(([key, val]) => {
+                                if (val && (val.wert || val.skl)) {
+                                    t += `<tr><td style="padding-left:20px;color:#718096;">${escapeHtml(key)}</td>
+                                        <td>${val.wert || '-'}</td><td>${val.skl ? sklBadge(val.skl) : '-'}</td></tr>`;
+                                }
+                            });
+                        }
+                    });
+                    t += '</table>';
+                    return t;
+                };
+
+                if (floor.allgemein) html += renderRoomTable(floor.allgemein, 'Allgemeinbereiche');
+                if (floor.units) {
+                    floor.units.forEach(u => {
+                        const label = u.typ === 'WE' ? `Wohnung ${u.nummer}` : `Gewerbe ${u.nummer}`;
+                        html += renderRoomTable(u.raeume, label);
+                    });
+                }
+                if (floor.raeume) html += renderRoomTable(floor.raeume);
+                html += '</div>';
+            });
+
+            // Dach
+            html += `<h2>Dach</h2><div class="section"><table>
+                <tr><td style="width:40%;font-weight:600;">Dachform</td><td>${escapeHtml(projectData.dach?.form || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Eindeckung</td><td>${escapeHtml(projectData.dach?.eindeckung || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Fläche</td><td>${projectData.dach?.flaeche ? projectData.dach.flaeche + ' m²' : '-'}</td></tr>
+                <tr><td style="font-weight:600;">Zustand</td><td>${sklBadge(projectData.dach?.skl)}</td></tr>
+                <tr><td style="font-weight:600;">Bemerkung</td><td>${escapeHtml(projectData.dach?.zustand || '-')}</td></tr>
+            </table></div>`;
+
+            // Fassaden
+            html += `<h2>Fassaden</h2><div class="section"><table>
+                <tr><th>Richtung</th><th>Material</th><th>Fläche</th><th>Zustand</th><th>Bemerkung</th></tr>`;
+            ['nord', 'ost', 'sued', 'west'].forEach(r => {
+                const f = projectData.fassaden?.[r] || {};
+                html += `<tr><td style="font-weight:600;">${r.charAt(0).toUpperCase() + r.slice(1)}</td>
+                    <td>${escapeHtml(f.material || '-')}</td>
+                    <td>${f.flaeche ? f.flaeche + ' m²' : '-'}</td>
+                    <td>${sklBadge(f.skl)}</td>
+                    <td>${escapeHtml(f.bemerkung || '-')}</td></tr>`;
+            });
+            html += '</table></div>';
+
+            // Maengel
+            const allMaengel = [...(projectData.maengel || []), ...collectRoomMaengel()];
+            if (allMaengel.length > 0) {
+                html += `<div class="floor-break"><h2>Mängelliste (${allMaengel.length})</h2><div class="section"><table>
+                    <tr><th>Geschoss</th><th>Raum</th><th>Beschreibung</th><th>Priorität</th><th>Kosten</th></tr>`;
+                allMaengel.forEach(m => {
+                    const prio = m.prioritaet || '-';
+                    html += `<tr class="mangel-row">
+                        <td>${escapeHtml(m.geschossName || '-')}</td>
+                        <td>${escapeHtml(m.raum || '-')}</td>
+                        <td>${escapeHtml(m.beschreibung || '')}</td>
+                        <td><span class="prio-badge prio-${prio}">${prio}</span></td>
+                        <td>${m.kostenschaetzung ? Number(m.kostenschaetzung).toLocaleString('de-DE') + ' €' : '-'}</td>
+                    </tr>`;
+                });
+                html += '</table></div></div>';
+            }
+
+            // Kosten
+            let total = 0;
+            const positions = projectData.kostenpositionen || [];
+            if (positions.length > 0 || (projectData.dach?.flaeche)) {
+                html += `<h2>Kostenschätzung</h2><div class="section"><table>
+                    <tr><th>Bauteil</th><th>Menge</th><th>SKL</th><th>Kosten (netto)</th></tr>`;
+                positions.forEach(pos => {
+                    const item = KOSTENKATALOG[pos.typ];
+                    const cost = calculateCost(pos.typ, pos.menge, pos.skl);
+                    total += cost;
+                    html += `<tr><td>${escapeHtml(item?.name || pos.typ)}</td>
+                        <td>${pos.menge} ${item?.einheit || ''}</td>
+                        <td>${sklBadge(pos.skl)}</td>
+                        <td>${cost.toLocaleString('de-DE')} €</td></tr>`;
+                });
+                // Dach
+                const dachF = parseFloat(projectData.dach?.flaeche) || 0;
+                if (dachF > 0) {
+                    const dc = calculateCost('steildach_belag', dachF, projectData.dach?.skl || 1);
+                    total += dc;
+                    html += `<tr><td>Dach</td><td>${dachF} m²</td><td>${sklBadge(projectData.dach?.skl)}</td><td>${dc.toLocaleString('de-DE')} €</td></tr>`;
+                }
+                // Fassade
+                let fc = 0;
+                Object.values(projectData.fassaden || {}).forEach(f => {
+                    const fl = parseFloat(f.flaeche) || 0;
+                    if (fl > 0) fc += calculateCost('aussenwand_innen', fl, f.skl || 1);
+                });
+                if (fc > 0) {
+                    total += fc;
+                    html += `<tr><td>Fassaden</td><td>-</td><td>-</td><td>${fc.toLocaleString('de-DE')} €</td></tr>`;
+                }
+                html += `<tr class="total-row"><td colspan="3">Gesamtkosten (netto)</td><td>${total.toLocaleString('de-DE')} €</td></tr>`;
+                html += `<tr class="total-row"><td colspan="3">Gesamtkosten (brutto, 19%)</td><td>${(total * 1.19).toLocaleString('de-DE')} €</td></tr>`;
+                const wf = parseFloat(d.wohnflaeche) || 0;
+                if (wf > 0) {
+                    html += `<tr style="background:#ed8936;color:white;font-weight:700;"><td colspan="3">Kennwert €/m² (${wf} m²)</td><td>${Math.round((total * 1.19) / wf).toLocaleString('de-DE')} €/m²</td></tr>`;
+                }
+                html += '</table></div>';
+            }
+
+            html += '</body></html>';
+            return html;
         }
 
         // ==================== EXCEL EXPORT ====================
@@ -3942,20 +4988,33 @@
 
             // === Mängelliste sammeln ===
             const alleMaengel = [];
+            // Manuelle Mängel (mit Priorität + Kosten)
+            (projectData.maengel || []).forEach(m => {
+                alleMaengel.push({
+                    geschoss: m.geschossName || '-',
+                    raum: m.raum || '-',
+                    beschreibung: m.beschreibung,
+                    prioritaet: m.prioritaet || 'mittel',
+                    kostenschaetzung: m.kostenschaetzung || null,
+                    quelle: 'manuell'
+                });
+            });
+            // Auto-gesammelt aus Räumen
             geschossAnalyse.forEach(g => {
                 g.maengel.forEach(m => {
                     alleMaengel.push({
                         geschoss: g.kuerzel,
                         raum: m.raum,
-                        beschreibung: m.bemerkung
+                        beschreibung: m.bemerkung,
+                        quelle: 'raum-bemerkung'
                     });
                 });
             });
             if (zustandsbewertung.dach.bemerkung) {
-                alleMaengel.push({ geschoss: 'Dach', raum: '-', beschreibung: zustandsbewertung.dach.bemerkung });
+                alleMaengel.push({ geschoss: 'Dach', raum: '-', beschreibung: zustandsbewertung.dach.bemerkung, quelle: 'dach' });
             }
             zustandsbewertung.fassaden.forEach(f => {
-                if (f.bemerkung) alleMaengel.push({ geschoss: 'Fassade', raum: f.richtung, beschreibung: f.bemerkung });
+                if (f.bemerkung) alleMaengel.push({ geschoss: 'Fassade', raum: f.richtung, beschreibung: f.bemerkung, quelle: 'fassade' });
             });
 
             // === FINALES JSON für n8n ===
@@ -4119,11 +5178,16 @@
             // Daten für spätere Nutzung speichern
             window._exportData = data;
 
-            // Gespeicherte Webhook URL laden
-            const savedUrl = localStorage.getItem('n8n_webhook_url');
-            if (savedUrl) {
-                document.getElementById('webhookUrl').value = savedUrl;
-            }
+            // Gespeicherte Webhook URL laden (aus IDB oder localStorage)
+            (async () => {
+                let savedUrl = '';
+                try {
+                    const s = await dbGet('settings', 'n8n_webhook_url');
+                    savedUrl = s?.value || '';
+                } catch(e) {}
+                if (!savedUrl) savedUrl = localStorage.getItem('n8n_webhook_url') || '';
+                if (savedUrl) document.getElementById('webhookUrl').value = savedUrl;
+            })();
         }
 
         function closeExportModal() {
@@ -4173,6 +5237,7 @@
                 if (response.ok) {
                     showToast('Erfolgreich an n8n gesendet!');
                     // URL speichern für nächstes Mal
+                    try { await dbPut('settings', { key: 'n8n_webhook_url', value: url }); } catch(e) {}
                     localStorage.setItem('n8n_webhook_url', url);
                 } else {
                     showToast('Fehler: ' + response.statusText);
