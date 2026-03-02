@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1a365d">
@@ -539,6 +539,7 @@
             right: 0;
             background: var(--card);
             padding: 16px 20px;
+            padding-bottom: max(16px, env(safe-area-inset-bottom));
             box-shadow: 0 -4px 6px -1px rgba(0,0,0,0.1);
             display: flex;
             gap: 12px;
@@ -1086,8 +1087,11 @@
         let activeProjectId = null;
 
         function openDB() {
+            if (_db) {
+                try { _db.transaction('settings', 'readonly'); return Promise.resolve(_db); }
+                catch(e) { _db = null; }
+            }
             return new Promise((resolve, reject) => {
-                if (_db) { resolve(_db); return; }
                 const req = indexedDB.open(DB_NAME, DB_VERSION);
                 req.onupgradeneeded = (e) => {
                     const db = e.target.result;
@@ -1103,50 +1107,64 @@
                         sq.createIndex('status', 'status', { unique: false });
                     }
                 };
-                req.onsuccess = (e) => { _db = e.target.result; resolve(_db); };
+                req.onsuccess = (e) => {
+                    _db = e.target.result;
+                    _db.onversionchange = () => { _db.close(); _db = null; };
+                    _db.onclose = () => { _db = null; };
+                    resolve(_db);
+                };
                 req.onerror = (e) => reject(e.target.error);
+                req.onblocked = () => {
+                    console.warn('IDB blocked by another tab');
+                    reject(new Error('Datenbank blockiert - andere Tabs schliessen'));
+                };
             });
         }
 
-        function dbGet(store, key) {
+        async function dbGet(store, key) {
+            const db = await openDB();
             return new Promise((resolve, reject) => {
-                const tx = _db.transaction(store, 'readonly');
+                const tx = db.transaction(store, 'readonly');
                 const req = tx.objectStore(store).get(key);
                 req.onsuccess = () => resolve(req.result);
                 req.onerror = () => reject(req.error);
             });
         }
 
-        function dbPut(store, data) {
+        async function dbPut(store, data) {
+            const db = await openDB();
             return new Promise((resolve, reject) => {
-                const tx = _db.transaction(store, 'readwrite');
+                const tx = db.transaction(store, 'readwrite');
                 const req = tx.objectStore(store).put(data);
                 req.onsuccess = () => resolve(req.result);
                 req.onerror = () => reject(req.error);
             });
         }
 
-        function dbGetAll(store) {
+        async function dbGetAll(store) {
+            const db = await openDB();
             return new Promise((resolve, reject) => {
-                const tx = _db.transaction(store, 'readonly');
+                const tx = db.transaction(store, 'readonly');
                 const req = tx.objectStore(store).getAll();
                 req.onsuccess = () => resolve(req.result);
                 req.onerror = () => reject(req.error);
             });
         }
 
-        function dbDelete(store, key) {
+        async function dbDelete(store, key) {
+            const db = await openDB();
             return new Promise((resolve, reject) => {
-                const tx = _db.transaction(store, 'readwrite');
+                const tx = db.transaction(store, 'readwrite');
                 const req = tx.objectStore(store).delete(key);
                 req.onsuccess = () => resolve();
                 req.onerror = () => reject(req.error);
             });
         }
 
-        function dbGetByIndex(store, indexName, value) {
+        async function dbGetByIndex(store, indexName, value) {
+            const db = await openDB();
             return new Promise((resolve, reject) => {
-                const tx = _db.transaction(store, 'readonly');
+                const tx = db.transaction(store, 'readonly');
                 const idx = tx.objectStore(store).index(indexName);
                 const req = idx.getAll(value);
                 req.onsuccess = () => resolve(req.result);
@@ -1169,8 +1187,8 @@
                     data: data
                 });
                 // Migrate settings
-                const webhookUrl = localStorage.getItem('n8n_webhook_url');
-                if (webhookUrl) await dbPut('settings', { key: 'n8n_webhook_url', value: webhookUrl });
+                const webhookUrl = localStorage.getItem('sync_webhook_url');
+                if (webhookUrl) await dbPut('settings', { key: 'sync_webhook_url', value: webhookUrl });
                 const airtableKey = localStorage.getItem('airtable_api_key');
                 if (airtableKey) await dbPut('settings', { key: 'airtable_api_key', value: airtableKey });
                 const airtableBase = localStorage.getItem('airtable_base_id');
@@ -1178,9 +1196,14 @@
                 const airtableTable = localStorage.getItem('airtable_table_name');
                 if (airtableTable) await dbPut('settings', { key: 'airtable_table_name', value: airtableTable });
 
+                // All IDB writes succeeded, now safe to remove localStorage
+                activeProjectId = id;
                 localStorage.removeItem('immokonzept_project_v2');
                 localStorage.removeItem('immokonzept_project');
-                activeProjectId = id;
+                localStorage.removeItem('sync_webhook_url');
+                localStorage.removeItem('airtable_api_key');
+                localStorage.removeItem('airtable_base_id');
+                localStorage.removeItem('airtable_table_name');
                 showToast('Projekt aus localStorage migriert');
             } catch (e) {
                 console.error('Migration failed:', e);
@@ -1239,17 +1262,26 @@
             };
         }
 
-        async function queueSync(projectId) {
+        async function queueSync(projectId, dataSnapshot) {
             if (!_db) return;
             try {
                 const syncUrl = await dbGet('settings', 'sync_webhook_url');
                 if (!syncUrl?.value) return; // No sync configured
 
+                // Deep-clone only when we actually need to sync
+                const payload = buildExportPayload(dataSnapshot || JSON.parse(JSON.stringify(projectData)));
+
+                // Deduplicate: remove existing pending entries for same project
+                try {
+                    const existing = await dbGetByIndex('sync-queue', 'projectId', projectId);
+                    for (const e of existing) { await dbDelete('sync-queue', e.id); }
+                } catch(ex) {}
+
                 await dbPut('sync-queue', {
                     projectId: projectId,
                     timestamp: new Date().toISOString(),
                     type: 'project-update',
-                    payload: buildExportPayload(projectData),
+                    payload: payload,
                     status: 'pending'
                 });
                 updateSyncBadge();
@@ -1383,9 +1415,9 @@
 
         // Airtable Konfiguration (ImmoKonzept Base) - wird async aus IDB aktualisiert
         const AIRTABLE_CONFIG = {
-            apiKey: localStorage.getItem('airtable_api_key') || '',
-            baseId: localStorage.getItem('airtable_base_id') || 'appWaBDKXVuXwBGX5',
-            tableName: localStorage.getItem('airtable_table_name') || 'Objekte'
+            apiKey: '',
+            baseId: 'appWaBDKXVuXwBGX5',
+            tableName: 'Objekte'
         };
 
         async function loadAirtableConfigFromIDB() {
@@ -1528,6 +1560,7 @@
         let drawMode = 'pan';
         let isDrawing = false;
         let currentPath = [];
+        let _canvasAbortController = null;
 
         // ==================== INITIALISIERUNG ====================
 
@@ -1535,6 +1568,23 @@
             try {
                 await openDB();
                 await migrateFromLocalStorage();
+
+                // Recover emergency save if exists
+                const emergencySave = localStorage.getItem('immokonzept_emergency_save');
+                if (emergencySave && _db) {
+                    try {
+                        const emergency = JSON.parse(emergencySave);
+                        const existing = await dbGet('projects', emergency.projectId);
+                        if (existing && emergency.timestamp > existing.modified) {
+                            existing.data = emergency.data;
+                            existing.modified = emergency.timestamp;
+                            await dbPut('projects', existing);
+                            console.log('Emergency save recovered for', emergency.projectId);
+                        }
+                        localStorage.removeItem('immokonzept_emergency_save');
+                    } catch(e) { console.warn('Emergency save recovery failed:', e); }
+                }
+
                 await loadAirtableConfigFromIDB();
 
                 // Check if there are projects - show project list or last project
@@ -1545,11 +1595,11 @@
                     currentPage = 'projektliste';
                 } else {
                     // No projects, try legacy load
-                    loadProjectLegacy();
+                    await loadProjectLegacy();
                 }
             } catch (e) {
                 console.warn('IDB init failed, using localStorage:', e);
-                loadProjectLegacy();
+                await loadProjectLegacy();
             }
 
             renderNavigation();
@@ -1584,7 +1634,13 @@
         window.addEventListener('beforeunload', () => {
             if (activeProjectId) {
                 clearTimeout(_saveTimer);
-                saveProject(true);
+                try {
+                    localStorage.setItem('immokonzept_emergency_save', JSON.stringify({
+                        projectId: activeProjectId,
+                        data: projectData,
+                        timestamp: new Date().toISOString()
+                    }));
+                } catch(e) {}
             }
         });
 
@@ -1617,7 +1673,7 @@
 
                 // Dynamische Geschosse
                 projectData.geschosse.forEach(g => {
-                    html += `<li><a href="#" class="${currentPage === 'geschoss_' + g.id ? 'active' : ''}" onclick="navigateTo('geschoss_${g.id}')">${g.kuerzel}</a></li>`;
+                    html += `<li><a href="#" class="${currentPage === 'geschoss_' + g.id ? 'active' : ''}" onclick="navigateTo('geschoss_${g.id}')">${escapeHtml(g.kuerzel)}</a></li>`;
                 });
 
                 // + Geschoss Button
@@ -1683,7 +1739,7 @@
                 if (page === 'maengel') return 'Mängel';
                 if (page.startsWith('geschoss_')) {
                     const floor = projectData.geschosse.find(g => g.id === page.replace('geschoss_', ''));
-                    return floor ? floor.kuerzel : page;
+                    return floor ? escapeHtml(floor.kuerzel) : escapeHtml(page);
                 }
                 return page;
             };
@@ -2341,11 +2397,11 @@
                     return `
                         <div class="plan-card" onclick="openPlanViewer('${plan.id}')">
                             <div class="plan-preview">
-                                ${plan.thumbnail ? `<img src="${plan.thumbnail}" alt="${plan.name}">` : '📄'}
+                                ${plan.thumbnail ? `<img src="${plan.thumbnail}" alt="${escapeHtml(plan.name)}">` : '📄'}
                             </div>
                             <div class="plan-info">
-                                <h4>${plan.name}</h4>
-                                <span>${geschossNames}</span>
+                                <h4>${escapeHtml(plan.name)}</h4>
+                                <span>${escapeHtml(geschossNames)}</span>
                             </div>
                         </div>
                     `;
@@ -2359,15 +2415,15 @@
                     <h3 style="color: #1565c0; margin-bottom: 12px;">📁 Objektordner (Google Drive / Cloud)</h3>
                     <div class="form-group">
                         <label>Link zum Objektordner (statt Datei-Upload)</label>
-                        <input type="url" id="objektordnerLink" value="${objektordner}"
+                        <input type="url" id="objektordnerLink" value="${escapeHtml(objektordner)}"
                                placeholder="https://drive.google.com/drive/folders/..."
                                onchange="saveObjektordnerLink()" style="font-size: 0.9rem;">
                     </div>
-                    ${objektordner ? `
-                        <a href="${objektordner}" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 8px;">
-                            🔗 Ordner öffnen
+                    ${(objektordner && /^https?:\/\//i.test(objektordner)) ? `
+                        <a href="${escapeHtml(objektordner)}" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                            Ordner öffnen
                         </a>
-                    ` : ''}
+                    ` : `<span class="btn btn-outline btn-sm" style="margin-top: 8px; opacity: 0.5;">Kein Link</span>`}
                 </div>
 
                 <div class="card">
@@ -2386,7 +2442,7 @@
             // Geschoss-Dropdown füllen
             const select = document.getElementById('planGeschoss');
             select.innerHTML = projectData.geschosse.map(g =>
-                `<option value="${g.id}">${g.name} (${g.kuerzel})</option>`
+                `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)} (${escapeHtml(g.kuerzel)})</option>`
             ).join('');
 
             document.getElementById('planFile').value = '';
@@ -2544,17 +2600,19 @@
             const floor = projectData.geschosse.find(g => g.id === floorId);
             if (!floor) return;
 
-            const hasRooms = floor.raeume && floor.raeume.length > 0;
-            const confirmMsg = hasRooms
-                ? `"${floor.name}" enthält ${floor.raeume.length} Räume. Wirklich löschen?`
+            const roomCount = (floor.allgemein?.length || 0) +
+                (floor.units || []).reduce((sum, u) => sum + (u.raeume?.length || 0), 0) +
+                (floor.raeume?.length || 0);
+            const confirmMsg = roomCount > 0
+                ? `"${floor.name}" enthält ${roomCount} Räume. Wirklich löschen?`
                 : `"${floor.name}" wirklich löschen?`;
 
-            if (confirm(confirmMsg)) {
-                projectData.geschosse = projectData.geschosse.filter(g => g.id !== floorId);
-                scheduleSave();
-                navigateTo('deckblatt');
-                showToast('Geschoss gelöscht');
-            }
+            if (!confirm(confirmMsg)) return;
+
+            projectData.geschosse = projectData.geschosse.filter(g => g.id !== floorId);
+            scheduleSave();
+            navigateTo('deckblatt');
+            showToast('Geschoss gelöscht');
         }
 
         // Raum-Vorlagen für schnelles Hinzufügen
@@ -2609,7 +2667,7 @@
                 <div style="margin-bottom: 16px;">
                     ${zugeordnetePlaene.map(p => `
                         <button class="btn btn-outline btn-sm" onclick="openPlanViewer('${p.id}')" style="margin-right: 8px; margin-bottom: 8px;">
-                            📄 ${p.name}
+                            📄 ${escapeHtml(p.name)}
                         </button>
                     `).join('')}
                 </div>
@@ -2676,7 +2734,7 @@
             // Massenvoreinstellung HTML
             const massenHtml = `
                 <div class="card" style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9); border: 2px solid #66bb6a;">
-                    <h3 style="color: #2e7d32; margin-bottom: 12px;">⚡ Massenvoreinstellung für ${floor.kuerzel}</h3>
+                    <h3 style="color: #2e7d32; margin-bottom: 12px;">Massenvoreinstellung für ${escapeHtml(floor.kuerzel)}</h3>
                     <p style="font-size: 0.85rem; color: #388e3c; margin-bottom: 12px;">SKL-Wert auf alle Räume/Bauteile dieses Geschosses anwenden:</p>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button class="btn btn-sm" style="background: #48bb78; color: white;" onclick="massenSklSetzen('${floorId}', 1)">SKL 1 (sehr gut)</button>
@@ -2691,7 +2749,7 @@
             return `
                 <div class="card">
                     <h2>
-                        ${floor.name}
+                        ${escapeHtml(floor.name)}
                         <button class="delete-btn" onclick="deleteFloor('${floorId}')">Löschen</button>
                     </h2>
                     ${plaeneHtml}
@@ -2780,7 +2838,7 @@
             return `
                 <div class="room-item" onclick="openRoomModal('${floorId}', '${bereich}', '${unitKey}', ${idx})">
                     <div class="room-info">
-                        <h3>${room.nummer || ''} ${room.name}</h3>
+                        <h3>${escapeHtml(room.nummer || '')} ${escapeHtml(room.name)}</h3>
                         <span>${bauteilCount} Bauteile erfasst</span>
                     </div>
                     <div class="room-actions">
@@ -3224,8 +3282,10 @@
         }
 
         function switchFassade(fassade) {
-            // Vorherige Fassade speichern
-            saveFassade();
+            // Vorherige Fassade speichern (nur wenn Wechsel von anderer Fassade)
+            if (currentFassade && fassade !== currentFassade) {
+                saveFassade();
+            }
 
             currentFassade = fassade;
             const titles = { nord: 'Nordfassade', ost: 'Ostfassade', sued: 'Südfassade', west: 'Westfassade' };
@@ -3432,7 +3492,7 @@
                 </div>
 
                 <div class="card">
-                    <button class="btn btn-outline btn-block" onclick="exportToExcel()">
+                    <button class="btn btn-outline btn-block" onclick="exportExcel()">
                         📊 Excel-Export
                     </button>
                 </div>
@@ -3555,13 +3615,18 @@
             offsetX = (planCanvas.width - planImage.width * scale) / 2;
             offsetY = (planCanvas.height - planImage.height * scale) / 2;
 
+            // Abort previous listeners to prevent accumulation
+            if (_canvasAbortController) _canvasAbortController.abort();
+            _canvasAbortController = new AbortController();
+            const signal = _canvasAbortController.signal;
+
             // Setup annotation canvas events
-            annotationCanvas.addEventListener('mousedown', startDrawing);
-            annotationCanvas.addEventListener('mousemove', draw);
-            annotationCanvas.addEventListener('mouseup', stopDrawing);
-            annotationCanvas.addEventListener('touchstart', handleTouch);
-            annotationCanvas.addEventListener('touchmove', handleTouch);
-            annotationCanvas.addEventListener('touchend', stopDrawing);
+            annotationCanvas.addEventListener('mousedown', startDrawing, { signal });
+            annotationCanvas.addEventListener('mousemove', draw, { signal });
+            annotationCanvas.addEventListener('mouseup', stopDrawing, { signal });
+            annotationCanvas.addEventListener('touchstart', handleTouch, { signal });
+            annotationCanvas.addEventListener('touchmove', handleTouch, { signal });
+            annotationCanvas.addEventListener('touchend', stopDrawing, { signal });
         }
 
         function drawPlan() {
@@ -3669,7 +3734,7 @@
 
         function handleTouch(e) {
             e.preventDefault();
-            const touch = e.touches[0];
+            const touch = e.touches[0] || e.changedTouches[0];
             const mouseEvent = new MouseEvent(
                 e.type === 'touchstart' ? 'mousedown' :
                 e.type === 'touchmove' ? 'mousemove' : 'mouseup',
@@ -3709,11 +3774,7 @@
             AIRTABLE_CONFIG.baseId = baseId;
             AIRTABLE_CONFIG.tableName = tableName;
 
-            localStorage.setItem('airtable_api_key', apiKey);
-            localStorage.setItem('airtable_base_id', baseId);
-            localStorage.setItem('airtable_table_name', tableName);
-
-            // Also save to IDB
+            // Save to IDB only (no localStorage for credentials)
             try {
                 await dbPut('settings', { key: 'airtable_api_key', value: apiKey });
                 await dbPut('settings', { key: 'airtable_base_id', value: baseId });
@@ -3768,7 +3829,7 @@
             if (!AIRTABLE_CONFIG.apiKey || !AIRTABLE_CONFIG.baseId) {
                 const msg = 'Airtable nicht konfiguriert';
                 console.error(msg);
-                if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + msg + '</span>';
+                if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + escapeHtml(msg) + '</span>';
                 return;
             }
 
@@ -3790,7 +3851,7 @@
                     const error = await response.json();
                     const msg = 'Fehler: ' + (error.error?.message || response.statusText);
                     console.error(msg, error);
-                    if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + msg + '</span>';
+                    if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + escapeHtml(msg) + '</span>';
                     return;
                 }
 
@@ -3810,7 +3871,7 @@
                         const plz = f.PLZ || '';
                         const stadt = f.Stadt || f.Ort || '';
                         const label = strasse ? `${strasse}, ${plz} ${stadt}`.trim() : record.id;
-                        select.innerHTML += `<option value="${record.id}">${label}</option>`;
+                        select.innerHTML += `<option value="${escapeHtml(record.id)}">${escapeHtml(label)}</option>`;
                     });
                     if (statusEl) statusEl.innerHTML = '<span style="color:green;">' + airtableRecords.length + ' Objekte geladen</span>';
                 } else {
@@ -3819,7 +3880,7 @@
                 }
             } catch (err) {
                 console.error('Fetch error:', err);
-                if (statusEl) statusEl.innerHTML = '<span style="color:red;">Fehler: ' + err.message + '</span>';
+                if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + escapeHtml('Fehler: ' + err.message) + '</span>';
             }
         }
 
@@ -3968,7 +4029,7 @@
                         proj.name = projectData.deckblatt?.adresse || proj.name || 'Unbenannt';
                         await dbPut('projects', proj);
                     }
-                    // Queue sync
+                    // Queue sync (deep-clone happens inside queueSync only if needed)
                     queueSync(activeProjectId);
                 } else {
                     // Fallback localStorage
@@ -3986,11 +4047,16 @@
         }
 
         async function loadProject(projectId) {
-            if (!_db) { loadProjectLegacy(); return; }
+            if (!_db) { await loadProjectLegacy(); return; }
             try {
                 const proj = await dbGet('projects', projectId);
                 if (proj && proj.data) {
-                    projectData = proj.data;
+                    projectData = JSON.parse(JSON.stringify(proj.data));
+                    if (!projectData.geschosse) projectData.geschosse = [];
+                    if (!projectData.bauplaene) projectData.bauplaene = [];
+                    if (!projectData.dach) projectData.dach = { skl: 1 };
+                    if (!projectData.fassaden) projectData.fassaden = { nord: {}, ost: {}, sued: {}, west: {} };
+                    if (!projectData.deckblatt) projectData.deckblatt = { gebaeudeArt: '' };
                     if (!projectData.kostenpositionen) projectData.kostenpositionen = [];
                     if (!projectData.objektdaten) projectData.objektdaten = {};
                     if (!projectData.maengel) projectData.maengel = [];
@@ -3999,24 +4065,39 @@
                 }
             } catch (e) {
                 console.error('Load error:', e);
-                loadProjectLegacy();
+                await loadProjectLegacy();
             }
         }
 
-        function loadProjectLegacy() {
+        async function loadProjectLegacy() {
             let saved = localStorage.getItem('immokonzept_project_v2');
             if (saved) {
                 projectData = JSON.parse(saved);
                 if (!projectData.kostenpositionen) projectData.kostenpositionen = [];
                 if (!projectData.objektdaten) projectData.objektdaten = {};
                 if (!projectData.maengel) projectData.maengel = [];
+                // Create IDB entry if database is available
+                if (_db && projectData.deckblatt) {
+                    try {
+                        const id = 'proj_' + Date.now();
+                        activeProjectId = id;
+                        await dbPut('projects', {
+                            id: id,
+                            name: projectData.deckblatt.objektBezeichnung || projectData.deckblatt.adresse || 'Importiertes Projekt',
+                            created: new Date().toISOString(),
+                            modified: new Date().toISOString(),
+                            status: 'aktiv',
+                            data: JSON.parse(JSON.stringify(projectData))
+                        });
+                    } catch(e) { console.warn('IDB entry creation from legacy failed:', e); }
+                }
                 return;
             }
             saved = localStorage.getItem('immokonzept_project');
             if (saved) {
                 const oldData = JSON.parse(saved);
                 migrateOldData(oldData);
-                saveProject(true);
+                await saveProject(true);
                 localStorage.removeItem('immokonzept_project');
             }
         }
@@ -4050,6 +4131,7 @@
 
         async function renderProjektliste() {
             const main = document.getElementById('mainContent');
+            main.innerHTML = '<div class="empty-state">Lade Projekte...</div>';
             let projects = [];
             try {
                 if (_db) projects = await dbGetAll('projects');
@@ -4075,9 +4157,9 @@
                     const isActive = p.id === activeProjectId;
                     return `
                         <div class="project-card ${isActive ? 'active-project' : ''}" onclick="openProject('${p.id}')">
-                            <h3>${d.adresse || p.name || 'Unbenannt'}</h3>
+                            <h3>${escapeHtml(d.adresse || p.name || 'Unbenannt')}</h3>
                             <div class="project-meta">
-                                ${d.projektnummer ? `${d.projektnummer} · ` : ''}${floors} Geschosse · ${kosten} Kosten · ${modified}
+                                ${d.projektnummer ? escapeHtml(d.projektnummer) + ' · ' : ''}${floors} Geschosse · ${kosten} Kosten · ${modified}
                             </div>
                             <div class="project-actions" onclick="event.stopPropagation()">
                                 <button class="btn btn-outline btn-sm" onclick="duplicateProject('${p.id}')">Kopie</button>
@@ -4287,15 +4369,15 @@
 
             // Geschoss options for form
             const geschossOpts = projectData.geschosse.map(g =>
-                `<option value="${g.id}" data-name="${g.kuerzel}">${g.kuerzel} - ${g.name}</option>`
+                `<option value="${escapeHtml(g.id)}" data-name="${escapeHtml(g.kuerzel)}">${escapeHtml(g.kuerzel)} - ${escapeHtml(g.name)}</option>`
             ).join('');
 
             // Manual list
             const manualHtml = manual.length > 0 ? manual.map((m, idx) => `
-                <div class="mangel-card prio-${m.prioritaet}">
+                <div class="mangel-card prio-${escapeHtml(m.prioritaet)}">
                     <div>
-                        <strong>${m.geschossName || '-'}</strong> · ${m.raum || '-'}
-                        <br><span style="font-size:0.9rem;">${m.beschreibung}</span>
+                        <strong>${escapeHtml(m.geschossName || '-')}</strong> · ${escapeHtml(m.raum || '-')}
+                        <br><span style="font-size:0.9rem;">${escapeHtml(m.beschreibung)}</span>
                         <br><span class="mangel-prio ${m.prioritaet}">${m.prioritaet}</span>
                         ${m.kostenschaetzung ? `<span style="margin-left:8px;font-size:0.85rem;color:var(--text-light);">${Number(m.kostenschaetzung).toLocaleString('de-DE')} €</span>` : ''}
                     </div>
@@ -4306,7 +4388,7 @@
             // Auto list
             const autoHtml = auto.length > 0 ? auto.map(m => `
                 <div class="mangel-auto">
-                    <strong>${m.geschossName}</strong> · ${m.raum}: ${m.beschreibung}
+                    <strong>${escapeHtml(m.geschossName)}</strong> · ${escapeHtml(m.raum)}: ${escapeHtml(m.beschreibung)}
                 </div>
             `).join('') : '<p style="color:var(--text-light);text-align:center;padding:10px;">Keine Bemerkungen in Räumen</p>';
 
@@ -4447,7 +4529,11 @@
                 URL.revokeObjectURL(url);
                 showToast('PDF heruntergeladen');
             } catch (e) {
-                showToast('PDF-Fehler: ' + e.message);
+                if (e.message && (e.message.includes('fetch') || e.message.includes('network') || e.message.includes('Failed'))) {
+                    showToast('Gotenberg nicht erreichbar. SSH-Tunnel aktiv?');
+                } else {
+                    showToast('PDF-Fehler: ' + e.message);
+                }
             }
         }
 
@@ -4571,10 +4657,10 @@
             ['nord', 'ost', 'sued', 'west'].forEach(r => {
                 const f = projectData.fassaden?.[r] || {};
                 html += `<tr><td style="font-weight:600;">${r.charAt(0).toUpperCase() + r.slice(1)}</td>
-                    <td>${escapeHtml(f.material || '-')}</td>
+                    <td>${escapeHtml(f.art || '-')}</td>
                     <td>${f.flaeche ? f.flaeche + ' m²' : '-'}</td>
                     <td>${sklBadge(f.skl)}</td>
-                    <td>${escapeHtml(f.bemerkung || '-')}</td></tr>`;
+                    <td>${escapeHtml(f.zustand || '-')}</td></tr>`;
             });
             html += '</table></div>';
 
@@ -4905,11 +4991,11 @@
                 },
                 fassaden: Object.entries(projectData.fassaden || {}).map(([richtung, f]) => ({
                     richtung: richtung.charAt(0).toUpperCase() + richtung.slice(1),
-                    material: f.material || '',
+                    material: f.art || '',
                     skl: f.skl || null,
                     sklText: sklToText(f.skl),
                     flaeche: f.flaeche || 0,
-                    bemerkung: f.bemerkung || ''
+                    bemerkung: f.zustand || ''
                 })).filter(f => f.skl || f.bemerkung)
             };
 
@@ -5021,7 +5107,7 @@
             const exportData = {
                 _meta: {
                     exportDatum: new Date().toISOString(),
-                    appVersion: '2.0',
+                    appVersion: '3.0',
                     format: 'immokonzept-datenaufnahme'
                 },
 
@@ -5063,7 +5149,8 @@
                     const elemente = [
                         { key: 'mod_dach', name: 'Dacherneuerung (inkl. Wärmedämmung)', max: 4 },
                         { key: 'mod_fenster', name: 'Fenster und Außentüren', max: 2 },
-                        { key: 'mod_leitungen', name: 'Leitungssysteme (Strom, Gas, Wasser, Abwasser)', max: 2 },
+                        { key: 'mod_elektro', name: 'Elektroinstallation', max: 2 },
+                        { key: 'mod_sanitaer', name: 'Sanitaer-/Wasserleitungen', max: 2 },
                         { key: 'mod_heizung', name: 'Heizungsanlage', max: 2 },
                         { key: 'mod_fassade', name: 'Wärmedämmung Außenwände', max: 4 },
                         { key: 'mod_baeder', name: 'Bäder', max: 2 },
@@ -5084,15 +5171,15 @@
                     });
 
                     const summe = result.reduce((s, p) => s + p.punkte, 0);
-                    let grad = 'nicht/kaum modernisiert';
+                    let grad = 'keine/geringe Modernisierung';
                     if (summe > 4) grad = 'teilweise modernisiert';
-                    if (summe > 10) grad = 'überwiegend modernisiert';
-                    if (summe > 17) grad = 'umfassend modernisiert';
+                    if (summe > 11) grad = 'überwiegend modernisiert';
+                    if (summe >= 19) grad = 'umfassend modernisiert';
 
                     return {
                         elemente: result,
                         gesamtpunkte: summe,
-                        maxPunkte: 20,
+                        maxPunkte: 22,
                         modernisierungsgrad: grad,
                         berechnungsjahr: aktuellesJahr
                     };
@@ -5182,10 +5269,10 @@
             (async () => {
                 let savedUrl = '';
                 try {
-                    const s = await dbGet('settings', 'n8n_webhook_url');
+                    const s = await dbGet('settings', 'sync_webhook_url');
                     savedUrl = s?.value || '';
                 } catch(e) {}
-                if (!savedUrl) savedUrl = localStorage.getItem('n8n_webhook_url') || '';
+                if (!savedUrl) savedUrl = localStorage.getItem('sync_webhook_url') || '';
                 if (savedUrl) document.getElementById('webhookUrl').value = savedUrl;
             })();
         }
@@ -5211,11 +5298,17 @@
             showToast('JSON heruntergeladen: ' + filename);
         }
 
-        function copyToClipboard() {
-            const textarea = document.getElementById('jsonPreview');
-            textarea.select();
-            document.execCommand('copy');
-            showToast('JSON in Zwischenablage kopiert');
+        async function copyToClipboard() {
+            const text = document.getElementById('jsonPreview').value;
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('JSON in Zwischenablage kopiert');
+            } catch(e) {
+                const textarea = document.getElementById('jsonPreview');
+                textarea.select();
+                document.execCommand('copy');
+                showToast('JSON in Zwischenablage kopiert');
+            }
         }
 
         async function sendToWebhook() {
@@ -5237,8 +5330,8 @@
                 if (response.ok) {
                     showToast('Erfolgreich an n8n gesendet!');
                     // URL speichern für nächstes Mal
-                    try { await dbPut('settings', { key: 'n8n_webhook_url', value: url }); } catch(e) {}
-                    localStorage.setItem('n8n_webhook_url', url);
+                    try { await dbPut('settings', { key: 'sync_webhook_url', value: url }); } catch(e) {}
+
                 } else {
                     showToast('Fehler: ' + response.statusText);
                 }
@@ -5248,7 +5341,13 @@
         }
 
         function escapeHtml(str) {
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         // Service Worker

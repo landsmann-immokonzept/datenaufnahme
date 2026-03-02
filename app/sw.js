@@ -34,14 +34,16 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) {
-        // Return cached, but also fetch new version
-        fetch(event.request).then(response => {
-          if (response.ok) {
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, response);
-            });
-          }
-        }).catch(() => {});
+        // Return cached, but also fetch new version (same-origin only)
+        if (event.request.url.startsWith(self.location.origin)) {
+          fetch(event.request).then(response => {
+            if (response.ok) {
+              caches.open(CACHE_NAME).then(cache => {
+                cache.put(event.request, response);
+              });
+            }
+          }).catch(() => {});
+        }
         return cached;
       }
 
@@ -73,14 +75,18 @@ self.addEventListener('sync', event => {
 
 async function syncFromQueue() {
   const DB_NAME = 'immokonzept-datenaufnahme';
-  const DB_VERSION = 1;
 
   try {
     const db = await new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      const req = indexedDB.open(DB_NAME);
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
+
+    if (!db.objectStoreNames.contains('settings') || !db.objectStoreNames.contains('sync-queue')) {
+      db.close();
+      return;
+    }
 
     // Get sync webhook URL
     const urlTx = db.transaction('settings', 'readonly');
@@ -110,8 +116,12 @@ async function syncFromQueue() {
           body: JSON.stringify(item.payload)
         });
         if (resp.ok) {
-          const delTx = db.transaction('sync-queue', 'readwrite');
-          delTx.objectStore('sync-queue').delete(item.id);
+          await new Promise((resolve, reject) => {
+              const delTx = db.transaction('sync-queue', 'readwrite');
+              delTx.objectStore('sync-queue').delete(item.id);
+              delTx.oncomplete = resolve;
+              delTx.onerror = () => reject(delTx.error);
+          });
         }
       } catch (e) {
         console.warn('SW sync failed for item', item.id, e);
