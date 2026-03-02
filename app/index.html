@@ -1,0 +1,4197 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a365d">
+    <title>ImmoKonzept Datenaufnahme</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        :root {
+            --primary: #1a365d;
+            --primary-light: #2c5282;
+            --accent: #ed8936;
+            --success: #48bb78;
+            --danger: #e53e3e;
+            --bg: #f7fafc;
+            --card: #ffffff;
+            --text: #2d3748;
+            --text-light: #718096;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow);
+        }
+
+        header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        header .subtitle {
+            font-size: 0.875rem;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
+        .offline-badge {
+            display: none;
+            background: var(--accent);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+
+        body.offline .offline-badge {
+            display: inline-block;
+        }
+
+        nav {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        nav ul {
+            display: flex;
+            list-style: none;
+            padding: 0 12px;
+            align-items: center;
+        }
+
+        nav li {
+            flex-shrink: 0;
+        }
+
+        nav a, nav button.nav-btn {
+            display: block;
+            padding: 14px 16px;
+            color: var(--text-light);
+            text-decoration: none;
+            font-size: 0.9rem;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        nav a.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            font-weight: 600;
+        }
+
+        nav .add-floor-btn {
+            background: var(--success);
+            color: white;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin: 6px 8px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        nav .add-floor-btn:hover {
+            background: #38a169;
+        }
+
+        main {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .card h2 {
+            font-size: 1.1rem;
+            color: var(--primary);
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card h2 .delete-btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-light);
+            margin-bottom: 6px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+            background: white;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-light);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-outline {
+            background: white;
+            border: 2px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
+        .room-list {
+            margin-top: 16px;
+        }
+
+        .room-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px;
+            background: var(--bg);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .room-item:hover {
+            background: var(--border);
+        }
+
+        .room-item .room-info h3 {
+            font-size: 1rem;
+            margin-bottom: 4px;
+        }
+
+        .room-item .room-info span {
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+
+        .room-item .room-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .room-item .badge {
+            background: var(--primary);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+
+        .element-entry {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .element-entry .element-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .element-entry .element-header h4 {
+            font-size: 0.95rem;
+            color: var(--primary);
+        }
+
+        .skl-buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        .skl-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid var(--border);
+            background: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .skl-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .skl-btn:nth-child(1).active { background: #48bb78; border-color: #48bb78; }
+        .skl-btn:nth-child(2).active { background: #68d391; border-color: #68d391; }
+        .skl-btn:nth-child(3).active { background: #ecc94b; border-color: #ecc94b; color: #744210; }
+        .skl-btn:nth-child(4).active { background: #ed8936; border-color: #ed8936; }
+        .skl-btn:nth-child(5).active { background: #e53e3e; border-color: #e53e3e; }
+
+        .plan-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .plan-card {
+            background: var(--bg);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .plan-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .plan-card .plan-preview {
+            height: 120px;
+            background: var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: var(--text-light);
+        }
+
+        .plan-card .plan-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .plan-card .plan-info {
+            padding: 12px;
+        }
+
+        .plan-card .plan-info h4 {
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+
+        .plan-card .plan-info span {
+            font-size: 0.75rem;
+            color: var(--text-light);
+        }
+
+        .plan-add {
+            border: 2px dashed var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 180px;
+            color: var(--text-light);
+            gap: 8px;
+        }
+
+        .plan-add:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .summary-table th, .summary-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .summary-table th {
+            background: var(--bg);
+            font-weight: 600;
+            color: var(--text-light);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .summary-table .total {
+            font-weight: 700;
+            background: var(--primary);
+            color: white;
+        }
+
+        .bottom-actions {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--card);
+            padding: 16px 20px;
+            box-shadow: 0 -4px 6px -1px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 12px;
+        }
+
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.active { display: flex; }
+
+        .modal-content {
+            background: var(--card);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            font-size: 1.25rem;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-light);
+        }
+
+        /* Plan Viewer */
+        .plan-viewer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 300;
+            flex-direction: column;
+        }
+
+        .plan-viewer.active { display: flex; }
+
+        .plan-viewer-header {
+            background: var(--primary);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .plan-viewer-toolbar {
+            display: flex;
+            gap: 8px;
+        }
+
+        .plan-viewer-toolbar button {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .plan-viewer-toolbar button.active {
+            background: var(--accent);
+        }
+
+        .plan-viewer-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .plan-viewer-content canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 400;
+            display: none;
+        }
+
+        .toast.show { display: block; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-light);
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        .floor-quick-select {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .floor-quick-btn {
+            padding: 14px 12px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .floor-quick-btn:hover {
+            border-color: var(--primary);
+            background: var(--bg);
+        }
+
+        .floor-quick-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: var(--bg);
+        }
+
+        .floor-quick-btn .kuerzel {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+            display: block;
+        }
+
+        .floor-quick-btn .name {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+
+        .airtable-section {
+            background: linear-gradient(135deg, #fcf3cf, #fdebd0);
+            border: 2px solid #f7dc6f;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .airtable-section h3 {
+            color: #b7950b;
+            margin-bottom: 12px;
+            font-size: 1rem;
+        }
+
+        .unit-section {
+            background: var(--card);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .unit-header {
+            background: var(--primary);
+            color: white;
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .unit-header:hover {
+            background: var(--primary-light);
+        }
+
+        .unit-header.collapsed + .unit-content {
+            display: none;
+        }
+
+        .unit-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+
+        .unit-content {
+            padding: 16px;
+        }
+
+        .quick-add-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .quick-add-btn {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-add-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            padding: 8px 12px;
+            background: var(--bg);
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .checkbox-label:hover {
+            background: var(--border);
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .raum-bauteile {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        .raum-bauteile h4 {
+            font-size: 0.95rem;
+            color: var(--primary);
+            margin-bottom: 12px;
+        }
+
+        .bauteil-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .bauteil-select {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .bauteil-select label {
+            font-size: 0.8rem;
+            color: var(--text-light);
+        }
+
+        .bauteil-select select {
+            padding: 8px;
+            font-size: 0.9rem;
+        }
+
+        .skl-mini {
+            display: flex;
+            gap: 2px;
+        }
+
+        .skl-mini span {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            border-radius: 3px;
+            background: var(--border);
+            color: var(--text-light);
+        }
+
+        .skl-mini span.active {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+
+        .kosten-eingabe {
+            background: var(--bg);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        @media (max-width: 600px) {
+            .form-row { grid-template-columns: 1fr; }
+            .form-row-3 { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>ImmoKonzept Datenaufnahme</h1>
+        <div class="subtitle" id="projectName">Kein Projekt geladen</div>
+        <span class="offline-badge">Offline-Modus</span>
+    </header>
+
+    <nav>
+        <ul id="navTabs">
+            <!-- Dynamisch generiert -->
+        </ul>
+    </nav>
+
+    <main id="mainContent">
+        <!-- Dynamisch generiert -->
+    </main>
+
+    <div class="bottom-actions">
+        <button class="btn btn-outline" onclick="saveProject()" style="flex: 1;">
+            Speichern
+        </button>
+        <button class="btn btn-success" onclick="exportExcel()" style="flex: 1;">
+            Excel
+        </button>
+        <button class="btn btn-primary" onclick="exportJSON()" style="flex: 1;">
+            JSON/n8n
+        </button>
+    </div>
+
+    <!-- Geschoss hinzufügen Modal -->
+    <div id="floorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Geschoss hinzufügen</h2>
+                <button class="modal-close" onclick="closeFloorModal()">&times;</button>
+            </div>
+
+            <p style="color: var(--text-light); margin-bottom: 16px;">Standard-Geschosse (ImmoWertV):</p>
+            <div id="floorQuickSelect" class="floor-quick-select">
+                <!-- Dynamisch generiert -->
+            </div>
+
+            <div style="margin: 24px 0; text-align: center; color: var(--text-light);">
+                — oder eigenes Geschoss —
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Bezeichnung</label>
+                    <input type="text" id="floorName" placeholder="z.B. Zwischengeschoss">
+                </div>
+                <div class="form-group">
+                    <label>Kürzel</label>
+                    <input type="text" id="floorKuerzel" placeholder="z.B. ZG" maxlength="6">
+                </div>
+            </div>
+            <button class="btn btn-outline btn-block" onclick="saveCustomFloor()">
+                Eigenes Geschoss hinzufügen
+            </button>
+        </div>
+    </div>
+
+    <!-- Raum Modal -->
+    <div id="roomModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 id="roomModalTitle">Raum bearbeiten</h2>
+                <button class="modal-close" onclick="closeRoomModal()">&times;</button>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Raumnummer</label>
+                    <input type="text" id="roomNummer" placeholder="z.B. WZ1">
+                </div>
+                <div class="form-group">
+                    <label>Bezeichnung</label>
+                    <input type="text" id="roomName" placeholder="z.B. Wohnzimmer">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Fläche (m²)</label>
+                <input type="number" id="roomFlaeche" step="0.01" placeholder="z.B. 25.5">
+            </div>
+
+            <div class="raum-bauteile">
+                <h4>Bauteile & Zustand</h4>
+                <div class="bauteil-grid" id="roomBauteile">
+                    <!-- Dynamisch generiert -->
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+                <label>Bemerkungen / Schäden</label>
+                <textarea id="roomBemerkung" placeholder="Mängel, Besonderheiten..."></textarea>
+            </div>
+
+            <button class="btn btn-primary btn-block" onclick="saveRoom()" style="margin-top: 16px;">
+                Raum speichern
+            </button>
+        </div>
+    </div>
+
+    <!-- Plan Upload Modal -->
+    <div id="planModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Plan hochladen</h2>
+                <button class="modal-close" onclick="closePlanModal()">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>Datei auswählen (PDF oder Bild)</label>
+                <input type="file" id="planFile" accept=".pdf,.jpg,.jpeg,.png" onchange="previewPlan(this)">
+            </div>
+            <div class="form-group">
+                <label>Bezeichnung</label>
+                <input type="text" id="planName" placeholder="z.B. Grundriss EG">
+            </div>
+            <div class="form-group">
+                <label>Geschoss-Zuordnung (optional)</label>
+                <select id="planGeschoss" multiple style="height: 120px;">
+                    <!-- Dynamisch gefüllt -->
+                </select>
+                <small style="color: var(--text-light);">Mehrfachauswahl mit Strg/Cmd</small>
+            </div>
+            <button class="btn btn-primary btn-block" onclick="savePlan()">
+                Plan speichern
+            </button>
+        </div>
+    </div>
+
+    <!-- Airtable Settings Modal -->
+    <div id="airtableModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Airtable Verbindung</h2>
+                <button class="modal-close" onclick="closeAirtableModal()">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>API Key (Personal Access Token)</label>
+                <input type="password" id="airtableApiKey" placeholder="pat...">
+                <small style="color: var(--text-light);">Aus Airtable: Account → Developer Hub → Personal Access Tokens</small>
+            </div>
+            <div class="form-group">
+                <label>Base ID</label>
+                <input type="text" id="airtableBaseId" placeholder="app...">
+                <small style="color: var(--text-light);">Aus der Airtable-URL: airtable.com/<strong>appXXXXXX</strong>/...</small>
+            </div>
+            <div class="form-group">
+                <label>Tabellen-Name</label>
+                <input type="text" id="airtableTableName" placeholder="z.B. Objekte" value="Objekte">
+            </div>
+            <button class="btn btn-primary btn-block" onclick="saveAirtableSettings()">
+                Speichern
+            </button>
+            <button class="btn btn-outline btn-block" onclick="testAirtableConnection()" style="margin-top: 8px;">
+                Verbindung testen
+            </button>
+        </div>
+    </div>
+
+    <!-- Plan Viewer -->
+    <div id="planViewer" class="plan-viewer">
+        <div class="plan-viewer-header">
+            <span id="planViewerTitle">Plan</span>
+            <div class="plan-viewer-toolbar">
+                <button onclick="setDrawMode('pan')" id="btnPan" class="active">Verschieben</button>
+                <button onclick="setDrawMode('draw')" id="btnDraw">Zeichnen</button>
+                <button onclick="setDrawMode('text')" id="btnText">Text</button>
+                <button onclick="undoAnnotation()">Rückgängig</button>
+                <button onclick="closePlanViewer()">Fertig</button>
+            </div>
+        </div>
+        <div class="plan-viewer-content" id="planViewerContent">
+            <canvas id="planCanvas"></canvas>
+            <canvas id="annotationCanvas"></canvas>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // ==================== KONSTANTEN ====================
+
+        // Gebäudearten nach ImmoWertV 2021
+        const GEBAEUDEARTEN = {
+            'efh_freistehend': 'EFH freistehend',
+            'efh_reihe_dhh': 'EFH Reihenhaus/DHH',
+            'zfh': 'Zweifamilienhaus',
+            'mfh_3_6': 'MFH (3-6 WE)',
+            'mfh_7_plus': 'MFH (7+ WE)',
+            'wohnhochhaus': 'Wohnhochhaus',
+            'wohn_geschaeftshaus': 'Wohn-/Geschäftshaus',
+            'buerogebaeude': 'Bürogebäude',
+            'gemischt': 'Gemischt genutzt'
+        };
+
+        // Standard-Geschosse nach ImmoWertV 2021
+        const GESCHOSSTYPEN = [
+            { kuerzel: 'UG2', name: '2. Untergeschoss' },
+            { kuerzel: 'UG', name: 'Untergeschoss' },
+            { kuerzel: 'KG', name: 'Kellergeschoss' },
+            { kuerzel: 'EG', name: 'Erdgeschoss' },
+            { kuerzel: '1.OG', name: '1. Obergeschoss' },
+            { kuerzel: '2.OG', name: '2. Obergeschoss' },
+            { kuerzel: '3.OG', name: '3. Obergeschoss' },
+            { kuerzel: '4.OG', name: '4. Obergeschoss' },
+            { kuerzel: '5.OG', name: '5. Obergeschoss' },
+            { kuerzel: 'DG', name: 'Dachgeschoss' },
+            { kuerzel: 'SG', name: 'Staffelgeschoss' },
+            { kuerzel: 'SB', name: 'Spitzboden' }
+        ];
+
+        // Bauteil-Optionen aus Sachverständigen-Protokoll
+        const BAUTEIL_OPTIONEN = {
+            fundamente: ['Streifenfundament', 'Betonsohle', 'Stahlbeton', 'Punktfundament', 'Schurf durchgeführt', 'Sichtprüfung nicht möglich'],
+            keller: ['Vollkeller', 'Teilkeller', 'Kriechkeller', 'ohne Keller', 'Sichtprüfung nicht möglich'],
+            aussenwand: ['Massiv Mauerwerk', 'Stahlbeton', 'Fertighaus', 'Fachwerk', 'Holzständer', 'Sichtprüfung nicht möglich'],
+            fassade: ['Putz', 'WDVS', 'Klinker/Verblender', 'Fachwerk sichtbar', 'Holzverschalung', 'Faserzement', 'Sichtprüfung nicht möglich'],
+            innenwand: ['Massiv Mauerwerk', 'Stahlbeton', 'Leichtbau/Gipskarton', 'Holzständer', 'Sichtprüfung nicht möglich'],
+            decken: ['Massiv Stahlbeton', 'Stahlsteindecke', 'Holzbalkendecke', 'Hohlkörperdecke', 'Sichtprüfung nicht möglich'],
+            treppen: ['Massiv Beton', 'Holz', 'Stahl-Holz', 'Stahl', 'Spindeltreppe', 'Sichtprüfung nicht möglich'],
+            dachkonstruktion: ['Satteldach', 'Flachdach', 'Walmdach', 'Pultdach', 'Mansarddach', 'Zeltdach', 'Sichtprüfung nicht möglich'],
+            dachdeckung: ['Betondachsteine', 'Tondachziegel', 'Wellplatten', 'Schiefer', 'Bitumen', 'Metall', 'Sichtprüfung nicht möglich'],
+            fussboden: ['Parkett', 'Laminat', 'Teppich', 'Fliesen', 'PVC/Vinyl', 'Estrich sichtbar', 'Dielen', 'Sichtprüfung nicht möglich'],
+            oberflaeche_decke: ['Putz', 'Anstrich', 'Raufaser', 'Tapete', 'Holzverkleidung', 'abgehängte Decke', 'Sichtprüfung nicht möglich'],
+            oberflaeche_wand: ['Putz', 'Anstrich', 'Raufaser', 'Tapete', 'Fliesen', 'Holzverkleidung', 'Sichtprüfung nicht möglich'],
+            tueren: ['Holz gestrichen', 'Furniertüren', 'Folientüren', 'Glastüren', 'Stahltüren', 'Sichtprüfung nicht möglich'],
+            fenster: ['Holz', 'Kunststoff', 'Aluminium', 'Holz-Alu', 'Sichtprüfung nicht möglich'],
+            verglasung: ['Einfachverglasung', '2-fach Isolierglas', '3-fach Wärmeschutz', 'Sichtprüfung nicht möglich'],
+            rolllaeden: ['ja', 'zum Teil', 'nein', 'Sichtprüfung nicht möglich'],
+            elektro: ['Unter Putz zeitgemäß', 'Unter Putz veraltet', 'Aufputz', 'Erneuerungsbedarf', 'Sichtprüfung nicht möglich'],
+            sanitaer: ['Gäste-WC mit WB', 'Standard', 'Gehoben', 'Erneuerungsbedarf', 'Sichtprüfung nicht möglich'],
+            heizung: ['Gas Zentralheizung', 'Öl Zentralheizung', 'Fernwärme', 'Wärmepumpe', 'Etagenheizung', 'Einzelöfen', 'Sichtprüfung nicht möglich'],
+            zustand: ['sehr gut', 'gut', 'mittel', 'ausreichend', 'mangelhaft', 'Sichtprüfung nicht möglich']
+        };
+
+        // Objektdaten Optionen
+        const OBJEKTDATEN_OPTIONEN = {
+            lage: ['Ortskern', 'Ortslage', 'Randlage', 'außerhalb'],
+            umgebung: ['Wohngebiet', 'Mischgebiet', 'Gewerbegebiet', 'Industriegebiet', 'Dorfgebiet'],
+            geschossigkeit: ['1-geschossig', '2-geschossig', '3-geschossig', '4-geschossig', '5+-geschossig'],
+            grundstueck_form: ['regelmäßig', 'unregelmäßig', 'Ecklage', 'Hinterland'],
+            grundstueck_topografie: ['eben', 'leichtes Gefälle', 'Hanglage', 'stark geneigt'],
+            boden: ['normal tragfähig', 'Auffüllung', 'Fels', 'hoher Grundwasserstand'],
+            altlasten: ['keine bekannt', 'Verdacht', 'bestätigt saniert', 'bestätigt unsaniert'],
+            immissionen: ['keine', 'Straßenverkehr', 'Bahntrasse', 'Flugverkehr', 'Gewerbe', 'Landwirtschaft'],
+            einfriedung: ['keine', 'Zaunanlage', 'Hecke', 'Mauer', 'Grenzbebauung', 'Zaun + Hecke', 'Zaun + Mauer'],  // Mehrfachauswahl möglich
+            befestigung: ['keine', 'Pflaster', 'Platten', 'wassergebundene Decke', 'Asphalt', 'Schotter'],
+            bepflanzung: ['keine', 'einfache Gartengestaltung', 'Ziergarten', 'parkähnlich'],
+            stellplaetze: ['keine', 'im öffentlichen Verkehrsraum', 'auf Grundstück', 'Garage', 'Carport', 'Tiefgarage']
+        };
+
+        // Airtable Konfiguration (ImmoKonzept Base)
+        const AIRTABLE_CONFIG = {
+            apiKey: localStorage.getItem('airtable_api_key') || '',  // Set via Settings or .env AIRTABLE_API_TOKEN
+            baseId: localStorage.getItem('airtable_base_id') || 'appWaBDKXVuXwBGX5',
+            tableName: localStorage.getItem('airtable_table_name') || 'Objekte'
+        };
+
+        // Kostenkatalog (aus BKI) mit DIN 276 Zuordnung
+        const KOSTENKATALOG = {
+            // Baustelleneinrichtung (KG 200)
+            'baustelleneinrichtung': { name: 'Baustelleneinrichtung', einheit: 'psch', skl1: 1925, skl5: 80000, kategorie: 'Allgemein', din276: 200 },
+
+            // KG 320 - Gründung
+            'kellerabdichtung': { name: 'Kellerabdichtung', einheit: 'm²', skl1: 80, skl5: 250, kategorie: 'Gründung', din276: 326 },
+            'drainage': { name: 'Drainage', einheit: 'lfm', skl1: 40, skl5: 120, kategorie: 'Gründung', din276: 326 },
+
+            // KG 330 - Außenwände
+            'aussentueren': { name: 'Außentüren', einheit: 'Stk', skl1: 500, skl5: 3500, kategorie: 'Außenbauteile', din276: 334 },
+            'aussenwand_innen': { name: 'Außenwand Innenbekleidung', einheit: 'm²', skl1: 5, skl5: 201, kategorie: 'Außenbauteile', din276: 335 },
+            'aussenwand_keller': { name: 'Außenwand Innenbekleidung Keller', einheit: 'm²', skl1: 72, skl5: 213, kategorie: 'Außenbauteile', din276: 335 },
+            'fenster': { name: 'Fenster', einheit: 'Stk', skl1: 400, skl5: 1500, kategorie: 'Außenbauteile', din276: 334 },
+            'fassade_putz': { name: 'Fassade Putz/Anstrich', einheit: 'm²', skl1: 25, skl5: 120, kategorie: 'Außenbauteile', din276: 335 },
+            'fassade_wdvs': { name: 'Fassade WDVS', einheit: 'm²', skl1: 80, skl5: 200, kategorie: 'Außenbauteile', din276: 335 },
+
+            // KG 340 - Innenwände
+            'innentueren': { name: 'Innentüren', einheit: 'Stk', skl1: 200, skl5: 800, kategorie: 'Innenbauteile', din276: 344 },
+            'innenwand': { name: 'Innenwand Bekleidung', einheit: 'm²', skl1: 5, skl5: 201, kategorie: 'Innenbauteile', din276: 345 },
+            'innenwand_keller': { name: 'Innenwand Bekleidung Keller', einheit: 'm²', skl1: 72, skl5: 213, kategorie: 'Innenbauteile', din276: 345 },
+            'innenwand_trockenbau': { name: 'Trockenbau Innenwand', einheit: 'm²', skl1: 40, skl5: 120, kategorie: 'Innenbauteile', din276: 341 },
+            'treppenhaus_renovierung': { name: 'Treppenhaus Renovierung', einheit: 'm²', skl1: 30, skl5: 150, kategorie: 'Innenbauteile', din276: 346 },
+            'treppe_sanierung': { name: 'Treppensanierung', einheit: 'psch', skl1: 1500, skl5: 8000, kategorie: 'Innenbauteile', din276: 346 },
+
+            // KG 350 - Decken & Böden
+            'decken_belag': { name: 'Decken, Beläge', einheit: 'm²', skl1: 4, skl5: 192, kategorie: 'Decken & Böden', din276: 352 },
+            'decken_bekleidung': { name: 'Decken, Bekleidung', einheit: 'm²', skl1: 5, skl5: 168, kategorie: 'Decken & Böden', din276: 353 },
+            'bodenbelag': { name: 'Bodenbelag', einheit: 'm²', skl1: 15, skl5: 120, kategorie: 'Decken & Böden', din276: 352 },
+            'estrich': { name: 'Estrich', einheit: 'm²', skl1: 20, skl5: 60, kategorie: 'Decken & Böden', din276: 352 },
+
+            // KG 360 - Dach
+            'steildach_belag': { name: 'Steildach Eindeckung', einheit: 'm²', skl1: 30, skl5: 145, kategorie: 'Dach', din276: 363 },
+            'steildach_bekleidung': { name: 'Steildach Bekleidung', einheit: 'm²', skl1: 27, skl5: 86, kategorie: 'Dach', din276: 363 },
+            'steildach_daemmung': { name: 'Dachdämmung', einheit: 'm²', skl1: 30, skl5: 100, kategorie: 'Dach', din276: 363 },
+            'flachdach': { name: 'Flachdach Abdichtung', einheit: 'm²', skl1: 40, skl5: 150, kategorie: 'Dach', din276: 363 },
+            'dachrinne': { name: 'Dachentwässerung', einheit: 'lfm', skl1: 15, skl5: 60, kategorie: 'Dach', din276: 364 },
+
+            // Abbruch (KG 390)
+            'abbruch_aussenwand': { name: 'Abbruch Außenwand', einheit: 'm²', skl1: 18, skl5: 152, kategorie: 'Abbruch', din276: 394 },
+            'abbruch_innenwand': { name: 'Abbruch Innenwand', einheit: 'm²', skl1: 31, skl5: 127, kategorie: 'Abbruch', din276: 394 },
+            'abbruch_decke': { name: 'Abbruch Decke', einheit: 'm²', skl1: 5, skl5: 108, kategorie: 'Abbruch', din276: 394 },
+            'abbruch_dach': { name: 'Abbruch Dach', einheit: 'm²', skl1: 15, skl5: 165, kategorie: 'Abbruch', din276: 394 },
+
+            // KG 410 - Abwasser, Wasser, Gas
+            'wasser_abwasser_gas': { name: 'Wasser, Abwasser, Gas', einheit: 'm³ BRI', skl1: 0, skl5: 52, kategorie: 'Haustechnik', din276: 410 },
+            'sanitaer': { name: 'Sanitärobjekte', einheit: 'Stk', skl1: 200, skl5: 2500, kategorie: 'Haustechnik', din276: 411 },
+
+            // KG 420 - Wärmeversorgung
+            'heizung': { name: 'Heizung', einheit: 'm³ BRI', skl1: 0, skl5: 34, kategorie: 'Haustechnik', din276: 420 },
+            'heizkoerper': { name: 'Heizkörper', einheit: 'Stk', skl1: 150, skl5: 600, kategorie: 'Haustechnik', din276: 422 },
+            'heizkessel': { name: 'Heizkessel/Therme', einheit: 'Stk', skl1: 3000, skl5: 15000, kategorie: 'Haustechnik', din276: 421 },
+
+            // KG 430 - Lüftung
+            'lueftung': { name: 'Lüftung', einheit: 'm³ BRI', skl1: 0, skl5: 3, kategorie: 'Haustechnik', din276: 430 },
+
+            // KG 440 - Elektro
+            'strom': { name: 'Elektroinstallation', einheit: 'm³ BRI', skl1: 0, skl5: 22, kategorie: 'Haustechnik', din276: 440 },
+            'elektro_verteiler': { name: 'Elektroverteiler', einheit: 'Stk', skl1: 500, skl5: 2000, kategorie: 'Haustechnik', din276: 441 }
+        };
+
+        // DIN 276 Kostengruppen-Bezeichnungen
+        const DIN276_GRUPPEN = {
+            200: 'Herrichten und Erschließen',
+            300: 'Baukonstruktion',
+            320: 'Gründung',
+            326: 'Bauwerksabdichtung',
+            330: 'Außenwände',
+            334: 'Außentüren und -fenster',
+            335: 'Außenwandbekleidungen',
+            340: 'Innenwände',
+            341: 'Tragende/Nichttragende Innenwände',
+            344: 'Innentüren',
+            345: 'Innenwandbekleidungen',
+            346: 'Innentreppen',
+            350: 'Decken',
+            352: 'Deckenbeläge',
+            353: 'Deckenbekleidungen',
+            360: 'Dächer',
+            363: 'Dachbeläge',
+            364: 'Dachentwässerung',
+            390: 'Sonstige Maßnahmen Baukonstruktion',
+            394: 'Abbruchmaßnahmen',
+            400: 'Technische Anlagen',
+            410: 'Abwasser-, Wasser-, Gasanlagen',
+            411: 'Sanitäranlagen',
+            420: 'Wärmeversorgungsanlagen',
+            421: 'Wärmeerzeugung',
+            422: 'Wärmeverteilung',
+            430: 'Lufttechnische Anlagen',
+            440: 'Starkstromanlagen',
+            441: 'Niederspannungsanlagen'
+        };
+
+        // ==================== APP STATE ====================
+
+        let projectData = {
+            deckblatt: {
+                gebaeudeArt: ''
+            },
+            geschosse: [],
+            bauplaene: [],
+            dach: { skl: 1 },
+            fassaden: { nord: {}, ost: {}, sued: {}, west: {} },
+            kostenpositionen: [],
+            objektdaten: {}
+        };
+
+        let currentPage = 'deckblatt';
+        let currentFloorId = null;
+        let currentRoomIndex = null;
+        let currentFassade = 'nord';
+        let currentPlanId = null;
+        let drawMode = 'pan';
+        let isDrawing = false;
+        let currentPath = [];
+
+        // ==================== INITIALISIERUNG ====================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProject();
+            renderNavigation();
+            renderCurrentPage();
+
+            // Set today's date if empty
+            setTimeout(() => {
+                const datumInput = document.getElementById('datum');
+                if (datumInput && !datumInput.value) {
+                    datumInput.valueAsDate = new Date();
+                }
+            }, 100);
+        });
+
+        // Offline detection
+        window.addEventListener('online', () => document.body.classList.remove('offline'));
+        window.addEventListener('offline', () => document.body.classList.add('offline'));
+        if (!navigator.onLine) document.body.classList.add('offline');
+
+        // ==================== NAVIGATION ====================
+
+        function renderNavigation() {
+            const nav = document.getElementById('navTabs');
+            let html = '';
+
+            // Deckblatt
+            html += `<li><a href="#" class="${currentPage === 'deckblatt' ? 'active' : ''}" onclick="navigateTo('deckblatt')">Deckblatt</a></li>`;
+
+            // Objektdaten (NEU)
+            html += `<li><a href="#" class="${currentPage === 'objektdaten' ? 'active' : ''}" onclick="navigateTo('objektdaten')">Objekt</a></li>`;
+
+            // Pläne
+            html += `<li><a href="#" class="${currentPage === 'plaene' ? 'active' : ''}" onclick="navigateTo('plaene')">Pläne</a></li>`;
+
+            // Fassade
+            html += `<li><a href="#" class="${currentPage === 'fassade' ? 'active' : ''}" onclick="navigateTo('fassade')">Fassade</a></li>`;
+
+            // Dynamische Geschosse
+            projectData.geschosse.forEach(g => {
+                html += `<li><a href="#" class="${currentPage === 'geschoss_' + g.id ? 'active' : ''}" onclick="navigateTo('geschoss_${g.id}')">${g.kuerzel}</a></li>`;
+            });
+
+            // + Geschoss Button
+            html += `<li><button class="nav-btn add-floor-btn" onclick="openFloorModal()">+ Geschoss</button></li>`;
+
+            // Dach
+            html += `<li><a href="#" class="${currentPage === 'dach' ? 'active' : ''}" onclick="navigateTo('dach')">Dach</a></li>`;
+
+            // Kosten
+            html += `<li><a href="#" class="${currentPage === 'kosten' ? 'active' : ''}" onclick="navigateTo('kosten')">Kosten</a></li>`;
+
+            nav.innerHTML = html;
+        }
+
+        function navigateTo(page) {
+            currentPage = page;
+            renderNavigation();
+            renderCurrentPage();
+            // Scroll nach oben
+            window.scrollTo(0, 0);
+        }
+
+        // Navigation: Alle Seiten in Reihenfolge
+        function getPageOrder() {
+            const pages = ['deckblatt', 'objektdaten', 'plaene', 'fassade'];
+            projectData.geschosse.forEach(g => pages.push('geschoss_' + g.id));
+            pages.push('dach', 'kosten');
+            return pages;
+        }
+
+        function navigatePrev() {
+            const pages = getPageOrder();
+            const idx = pages.indexOf(currentPage);
+            if (idx > 0) navigateTo(pages[idx - 1]);
+        }
+
+        function navigateNext() {
+            const pages = getPageOrder();
+            const idx = pages.indexOf(currentPage);
+            if (idx < pages.length - 1) navigateTo(pages[idx + 1]);
+        }
+
+        // Navigations-Pfeile HTML generieren
+        function renderNavigationArrows() {
+            const pages = getPageOrder();
+            const idx = pages.indexOf(currentPage);
+            const prevPage = idx > 0 ? pages[idx - 1] : null;
+            const nextPage = idx < pages.length - 1 ? pages[idx + 1] : null;
+
+            const getPageLabel = (page) => {
+                if (!page) return '';
+                if (page === 'deckblatt') return 'Deckblatt';
+                if (page === 'objektdaten') return 'Objektdaten';
+                if (page === 'plaene') return 'Pläne';
+                if (page === 'fassade') return 'Fassade';
+                if (page === 'dach') return 'Dach';
+                if (page === 'kosten') return 'Kosten';
+                if (page.startsWith('geschoss_')) {
+                    const floor = projectData.geschosse.find(g => g.id === page.replace('geschoss_', ''));
+                    return floor ? floor.kuerzel : page;
+                }
+                return page;
+            };
+
+            return `
+                <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 16px;">
+                    ${prevPage ? `
+                        <button class="btn btn-outline" onclick="navigatePrev()" style="display: flex; align-items: center; gap: 8px;">
+                            ← ${getPageLabel(prevPage)}
+                        </button>
+                    ` : '<div></div>'}
+                    <span style="color: var(--text-light); font-size: 0.85rem;">${idx + 1} / ${pages.length}</span>
+                    ${nextPage ? `
+                        <button class="btn btn-primary" onclick="navigateNext()" style="display: flex; align-items: center; gap: 8px;">
+                            ${getPageLabel(nextPage)} →
+                        </button>
+                    ` : '<div></div>'}
+                </div>
+            `;
+        }
+
+        function renderCurrentPage() {
+            const main = document.getElementById('mainContent');
+
+            let content = '';
+
+            if (currentPage === 'deckblatt') {
+                content = renderDeckblatt();
+                main.innerHTML = content + renderNavigationArrows();
+                loadDeckblattData();
+            } else if (currentPage === 'objektdaten') {
+                content = renderObjektdaten();
+                main.innerHTML = content + renderNavigationArrows();
+                loadObjektdaten();
+            } else if (currentPage === 'plaene') {
+                content = renderPlaene();
+                main.innerHTML = content + renderNavigationArrows();
+            } else if (currentPage.startsWith('geschoss_')) {
+                const floorId = currentPage.replace('geschoss_', '');
+                content = renderGeschoss(floorId);
+                main.innerHTML = content + renderNavigationArrows();
+            } else if (currentPage === 'dach') {
+                content = renderDach();
+                main.innerHTML = content + renderNavigationArrows();
+                loadDachData();
+            } else if (currentPage === 'fassade') {
+                content = renderFassade();
+                main.innerHTML = content + renderNavigationArrows();
+                loadFassadeData();
+            } else if (currentPage === 'kosten') {
+                content = renderKosten();
+                main.innerHTML = content + renderNavigationArrows();
+            }
+        }
+
+        // ==================== DECKBLATT ====================
+
+        function renderDeckblatt() {
+            const gebaeudeOptions = Object.entries(GEBAEUDEARTEN).map(([key, name]) =>
+                `<option value="${key}">${name}</option>`
+            ).join('');
+
+            const hasAirtableConfig = AIRTABLE_CONFIG.apiKey && AIRTABLE_CONFIG.baseId;
+
+            return `
+                <div class="airtable-section">
+                    <h3>Projekt aus Airtable laden</h3>
+                    <div id="airtableStatus" style="margin-bottom: 12px; font-size: 0.85rem;">Klicken Sie "Liste aktualisieren"</div>
+                    ${hasAirtableConfig ? `
+                        <div class="form-group">
+                            <select id="airtableRecordSelect" style="margin-bottom: 12px;">
+                                <option value="">-- Objekt auswählen --</option>
+                            </select>
+                        </div>
+                        <div class="form-row" style="gap: 8px;">
+                            <button class="btn btn-outline" onclick="loadAirtableRecords()" style="flex: 1;">
+                                Liste aktualisieren
+                            </button>
+                            <button class="btn btn-primary" onclick="loadSelectedRecord()" style="flex: 1;">
+                                Objekt laden
+                            </button>
+                        </div>
+                        <button class="btn btn-outline btn-sm" onclick="openAirtableSettings()" style="margin-top: 12px; width: 100%;">
+                            Airtable-Einstellungen
+                        </button>
+                    ` : `
+                        <p style="margin-bottom: 12px; font-size: 0.9rem;">Airtable noch nicht konfiguriert.</p>
+                        <button class="btn btn-primary" onclick="openAirtableSettings()">
+                            Airtable verbinden
+                        </button>
+                    `}
+                </div>
+
+                <div class="card">
+                    <h2>Formelles</h2>
+                    <div class="form-group">
+                        <label>Adresse</label>
+                        <input type="text" id="adresse" placeholder="Straße, PLZ Ort" onchange="saveDeckblatt()">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Projektnummer</label>
+                            <input type="text" id="projektnummer" placeholder="z.B. IK-2026-001" onchange="saveDeckblatt()">
+                        </div>
+                        <div class="form-group">
+                            <label>Datum</label>
+                            <input type="date" id="datum" onchange="saveDeckblatt()">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Uhrzeit von</label>
+                            <input type="time" id="uhrzeitVon" onchange="saveDeckblatt()">
+                        </div>
+                        <div class="form-group">
+                            <label>Uhrzeit bis</label>
+                            <input type="time" id="uhrzeitBis" onchange="saveDeckblatt()">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Beteiligte</label>
+                        <textarea id="beteiligte" placeholder="Namen der Beteiligten..." onchange="saveDeckblatt()"></textarea>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Gebäude</h2>
+                    <div class="form-group">
+                        <label>Gebäudeart (ImmoWertV)</label>
+                        <select id="gebaeudeArt" onchange="saveDeckblatt()">
+                            <option value="">Auswählen...</option>
+                            ${gebaeudeOptions}
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Baujahr</label>
+                            <input type="number" id="baujahr" placeholder="z.B. 1925" onchange="saveDeckblatt()">
+                        </div>
+                        <div class="form-group">
+                            <label>Vollgeschosse</label>
+                            <input type="number" id="vollgeschosse" placeholder="z.B. 3" onchange="saveDeckblatt()">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Wohnfläche (m²)</label>
+                            <input type="number" id="wohnflaeche" step="0.01" onchange="saveDeckblatt()">
+                        </div>
+                        <div class="form-group">
+                            <label>Nutzfläche (m²)</label>
+                            <input type="number" id="nutzflaeche" step="0.01" onchange="saveDeckblatt()">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Grundstücksfläche (m²)</label>
+                        <input type="number" id="grundstueck" step="0.01" onchange="saveDeckblatt()">
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadDeckblattData() {
+            const d = projectData.deckblatt;
+            if (!d) return;
+
+            const fields = ['adresse', 'projektnummer', 'datum', 'uhrzeitVon', 'uhrzeitBis', 'beteiligte',
+                           'gebaeudeArt', 'baujahr', 'vollgeschosse', 'wohnflaeche', 'nutzflaeche', 'grundstueck'];
+
+            fields.forEach(field => {
+                const el = document.getElementById(field);
+                if (el && d[field]) el.value = d[field];
+            });
+
+            document.getElementById('projectName').textContent = d.adresse || 'Kein Projekt geladen';
+
+            // Airtable-Objekte laden wenn konfiguriert
+            if (AIRTABLE_CONFIG.apiKey && AIRTABLE_CONFIG.baseId && airtableRecords.length === 0) {
+                loadAirtableRecords();
+            }
+        }
+
+        function saveDeckblatt() {
+            projectData.deckblatt = {
+                ...projectData.deckblatt,
+                adresse: document.getElementById('adresse')?.value || '',
+                projektnummer: document.getElementById('projektnummer')?.value || '',
+                datum: document.getElementById('datum')?.value || '',
+                uhrzeitVon: document.getElementById('uhrzeitVon')?.value || '',
+                uhrzeitBis: document.getElementById('uhrzeitBis')?.value || '',
+                beteiligte: document.getElementById('beteiligte')?.value || '',
+                gebaeudeArt: document.getElementById('gebaeudeArt')?.value || '',
+                baujahr: document.getElementById('baujahr')?.value || '',
+                vollgeschosse: document.getElementById('vollgeschosse')?.value || '',
+                wohnflaeche: document.getElementById('wohnflaeche')?.value || '',
+                nutzflaeche: document.getElementById('nutzflaeche')?.value || '',
+                grundstueck: document.getElementById('grundstueck')?.value || ''
+            };
+
+            document.getElementById('projectName').textContent = projectData.deckblatt.adresse || 'Kein Projekt geladen';
+            saveProject(true);
+        }
+
+        function saveObjektordnerLink() {
+            projectData.deckblatt = {
+                ...projectData.deckblatt,
+                objektordnerLink: document.getElementById('objektordnerLink')?.value || ''
+            };
+            saveProject(true);
+            showToast('Objektordner-Link gespeichert');
+        }
+
+        // ==================== OBJEKTDATEN ====================
+
+        function renderObjektdaten() {
+            const makeSelect = (id, options, label) => {
+                const opts = options.map(o => `<option value="${o}">${o}</option>`).join('');
+                return `
+                    <div class="form-group">
+                        <label>${label}</label>
+                        <select id="${id}" onchange="saveObjektdaten()">
+                            <option value="">-- wählen --</option>
+                            ${opts}
+                        </select>
+                    </div>
+                `;
+            };
+
+            const makeCheckboxGroup = (id, options, label) => {
+                const checks = options.map(o => `
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="${id}" value="${o}" onchange="saveObjektdaten()"> ${o}
+                    </label>
+                `).join('');
+                return `
+                    <div class="form-group">
+                        <label>${label}</label>
+                        <div class="checkbox-group">${checks}</div>
+                    </div>
+                `;
+            };
+
+            return `
+                <div class="card">
+                    <h2>Lage</h2>
+                    <div class="form-row">
+                        ${makeSelect('obj_lage', OBJEKTDATEN_OPTIONEN.lage, 'Lagequalität')}
+                        ${makeSelect('obj_umgebung', OBJEKTDATEN_OPTIONEN.umgebung, 'Umgebung')}
+                    </div>
+                    <div class="form-row">
+                        ${makeSelect('obj_geschossigkeit', OBJEKTDATEN_OPTIONEN.geschossigkeit, 'Bebauung Umgebung')}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Grundstück</h2>
+                    <div class="form-row">
+                        ${makeSelect('obj_form', OBJEKTDATEN_OPTIONEN.grundstueck_form, 'Grundstücksform')}
+                        ${makeSelect('obj_topografie', OBJEKTDATEN_OPTIONEN.grundstueck_topografie, 'Topografie')}
+                    </div>
+                    <div class="form-row">
+                        ${makeSelect('obj_boden', OBJEKTDATEN_OPTIONEN.boden, 'Bodenbeschaffenheit')}
+                        ${makeSelect('obj_altlasten', OBJEKTDATEN_OPTIONEN.altlasten, 'Altlasten')}
+                    </div>
+                    ${makeCheckboxGroup('obj_immissionen', OBJEKTDATEN_OPTIONEN.immissionen, 'Immissionen')}
+                </div>
+
+                <div class="card">
+                    <h2>Außenanlagen</h2>
+                    ${makeCheckboxGroup('obj_einfriedung', ['Zaunanlage', 'Hecke', 'Mauer', 'Grenzbebauung', 'keine'], 'Einfriedung (Mehrfachauswahl)')}
+                    <div class="form-row" style="margin-top: 16px;">
+                        ${makeSelect('obj_befestigung', OBJEKTDATEN_OPTIONEN.befestigung, 'Bodenbefestigung')}
+                    </div>
+                    <div class="form-row">
+                        ${makeSelect('obj_bepflanzung', OBJEKTDATEN_OPTIONEN.bepflanzung, 'Bepflanzung')}
+                        ${makeSelect('obj_stellplaetze', OBJEKTDATEN_OPTIONEN.stellplaetze, 'Stellplätze')}
+                    </div>
+                    <div class="form-group">
+                        <label>Bemerkungen Außenanlagen</label>
+                        <textarea id="obj_aussen_bemerkung" onchange="saveObjektdaten()" placeholder="Zustand, Besonderheiten..."></textarea>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Baukonstruktion (Gebäude gesamt)</h2>
+                    <div class="form-row">
+                        ${makeSelect('obj_fundamente', BAUTEIL_OPTIONEN.fundamente, 'Fundamente')}
+                        ${makeSelect('obj_keller', BAUTEIL_OPTIONEN.keller, 'Keller')}
+                    </div>
+                    <div class="form-row">
+                        ${makeSelect('obj_aussenwand', BAUTEIL_OPTIONEN.aussenwand, 'Außenwände')}
+                        ${makeSelect('obj_innenwand', BAUTEIL_OPTIONEN.innenwand, 'Innenwände')}
+                    </div>
+                    <div class="form-row">
+                        ${makeSelect('obj_decken', BAUTEIL_OPTIONEN.decken, 'Decken')}
+                        ${makeSelect('obj_treppen', BAUTEIL_OPTIONEN.treppen, 'Treppen')}
+                    </div>
+                    <div class="form-row">
+                        ${makeSelect('obj_dachkonstruktion', BAUTEIL_OPTIONEN.dachkonstruktion, 'Dachkonstruktion')}
+                        ${makeSelect('obj_dachdeckung', BAUTEIL_OPTIONEN.dachdeckung, 'Dachdeckung')}
+                    </div>
+                    <div class="form-row">
+                        ${makeSelect('obj_fenster', BAUTEIL_OPTIONEN.fenster, 'Fenster')}
+                        ${makeSelect('obj_verglasung', BAUTEIL_OPTIONEN.verglasung, 'Verglasung')}
+                    </div>
+                    <div class="form-row">
+                        ${makeSelect('obj_heizung', BAUTEIL_OPTIONEN.heizung, 'Heizung')}
+                        ${makeSelect('obj_elektro', BAUTEIL_OPTIONEN.elektro, 'Elektroinstallation')}
+                    </div>
+                    <div class="form-row">
+                        ${makeSelect('obj_zustand', BAUTEIL_OPTIONEN.zustand, 'Gesamtzustand Gebäude')}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Modernisierungspunkte (ImmoWertV-Modell)</h2>
+                    <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 16px;">
+                        Punktevergabe nach Zeitpunkt der Maßnahme. Jahr eingeben → Punkte werden automatisch berechnet.
+                    </p>
+                    <div style="overflow-x: auto;">
+                        <table class="summary-table" id="modernisierungsTabelle" style="font-size: 0.85rem;">
+                            <thead>
+                                <tr style="background: var(--primary); color: white;">
+                                    <th style="min-width: 200px;">Maßnahme</th>
+                                    <th style="text-align: center; width: 50px;">≤5 J.</th>
+                                    <th style="text-align: center; width: 50px;">≤10 J.</th>
+                                    <th style="text-align: center; width: 50px;">≤15 J.</th>
+                                    <th style="text-align: center; width: 50px;">≤20 J.</th>
+                                    <th style="text-align: center; width: 50px;">Max</th>
+                                    <th style="text-align: center; width: 80px;">Jahr</th>
+                                    <th style="text-align: center; width: 60px; background: var(--accent);">Punkte</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${renderModZeileNeu('mod_dach', 'Dacherneuerung (inkl. Wärmedämmung)', [4, 3, 2, 1], 4)}
+                                ${renderModZeileNeu('mod_fenster', 'Fenster und Außentüren', [2, 2, 1, 0], 2)}
+                                ${renderModZeileNeu('mod_elektro', 'Elektroinstallation', [2, 2, 2, 1], 2)}
+                                ${renderModZeileNeu('mod_sanitaer', 'Sanitär-/Wasserleitungen', [2, 2, 1, 0], 2)}
+                                ${renderModZeileNeu('mod_heizung', 'Heizungsanlage', [2, 2, 1, 0], 2)}
+                                ${renderModZeileNeu('mod_fassade', 'Wärmedämmung Außenwände', [4, 3, 2, 1], 4)}
+                                ${renderModZeileNeu('mod_baeder', 'Bäder', [2, 2, 1, 0], 2)}
+                                ${renderModZeileNeu('mod_innenausbau', 'Innenausbau (Decken, Fußböden, Treppen)', [2, 2, 2, 1], 2)}
+                                ${renderModZeileNeu('mod_grundriss', 'Wesentliche Grundrissverbesserung', [2, 2, 2, 2], 2, true)}
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: var(--primary); color: white; font-weight: bold;">
+                                    <td colspan="5">Modernisierungspunktzahl</td>
+                                    <td style="text-align: center;">22</td>
+                                    <td></td>
+                                    <td style="text-align: center; font-size: 1.1rem; background: var(--accent);" id="modPunkteGesamt">0,0</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <div style="margin-top: 16px; display: flex; gap: 16px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px; padding: 12px; background: var(--bg); border-radius: 8px;">
+                            <strong>Modernisierungsgrad:</strong>
+                            <div id="modGrad" style="font-size: 1.1rem; margin-top: 4px; font-weight: 600;">-</div>
+                        </div>
+                        <div style="flex: 2; min-width: 300px; padding: 12px; background: var(--bg); border-radius: 8px; font-size: 0.8rem;">
+                            <strong>Einordnung:</strong><br>
+                            ≤4 Pkt: nicht/kaum modernisiert |
+                            5-11 Pkt: teilweise |
+                            12-18 Pkt: überwiegend |
+                            ≥19 Pkt: umfassend modernisiert
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label>Bemerkung zur Grundrissänderung</label>
+                        <input type="text" id="mod_grundriss_bemerkung" placeholder="z.B. Durchgangszimmer beseitigt, Bad vergrößert..."
+                               onchange="saveModBemerkung()"
+                               value="${projectData.objektdaten?.mod_grundriss_bemerkung || ''}">
+                    </div>
+                </div>
+            `;
+        }
+
+        // Modernisierungspunkte-Konfiguration nach ImmoWertV
+        const MOD_CONFIG = {
+            mod_dach: { punkte: [4, 3, 2, 1], max: 4 },
+            mod_fenster: { punkte: [2, 2, 1, 0], max: 2 },
+            mod_elektro: { punkte: [2, 2, 2, 1], max: 2 },
+            mod_sanitaer: { punkte: [2, 2, 1, 0], max: 2 },
+            mod_heizung: { punkte: [2, 2, 1, 0], max: 2 },
+            mod_fassade: { punkte: [4, 3, 2, 1], max: 4 },
+            mod_baeder: { punkte: [2, 2, 1, 0], max: 2 },
+            mod_innenausbau: { punkte: [2, 2, 2, 1], max: 2 },
+            mod_grundriss: { punkte: [2, 2, 2, 2], max: 2, zeitunabhaengig: true }
+        };
+
+        function renderModZeileNeu(id, label, punkteArray, maxPunkte, zeitunabhaengig = false) {
+            const jahr = projectData.objektdaten?.[id + '_jahr'] || '';
+            const gespeichertePunkte = projectData.objektdaten?.[id + '_punkte'];
+            const erfolgt = projectData.objektdaten?.[id + '_erfolgt'] || '';
+
+            return `
+                <tr>
+                    <td style="font-size: 0.85rem;">${label}</td>
+                    <td style="text-align: center; color: var(--text-light); font-size: 0.8rem;">${punkteArray[0]}</td>
+                    <td style="text-align: center; color: var(--text-light); font-size: 0.8rem;">${punkteArray[1]}</td>
+                    <td style="text-align: center; color: var(--text-light); font-size: 0.8rem;">${punkteArray[2]}</td>
+                    <td style="text-align: center; color: var(--text-light); font-size: 0.8rem;">${punkteArray[3]}</td>
+                    <td style="text-align: center; font-weight: 600;">${maxPunkte}</td>
+                    <td style="text-align: center;">
+                        ${zeitunabhaengig ? `
+                            <select id="${id}_erfolgt" onchange="onModJahrChange('${id}', true)" style="width: 60px; padding: 4px; font-size: 0.8rem;">
+                                <option value="">-</option>
+                                <option value="ja" ${erfolgt === 'ja' ? 'selected' : ''}>Ja</option>
+                            </select>
+                        ` : `
+                            <input type="number" id="${id}_jahr" value="${jahr}"
+                                   placeholder="JJJJ" min="1900" max="2030"
+                                   onchange="onModJahrChange('${id}', false)"
+                                   style="width: 60px; padding: 4px; text-align: center; font-size: 0.8rem;">
+                        `}
+                    </td>
+                    <td style="text-align: center; background: #fff3cd;">
+                        <input type="number" id="${id}_punkte"
+                               value="${gespeichertePunkte !== undefined ? gespeichertePunkte : ''}"
+                               placeholder="0" min="0" max="${maxPunkte}" step="0.5"
+                               onchange="onModPunkteChange('${id}')"
+                               style="width: 50px; padding: 4px; text-align: center; font-weight: 600; font-size: 0.9rem; border: 2px solid #ffc107;">
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Bei Jahr-Änderung: Punkte automatisch berechnen und eintragen
+        function onModJahrChange(id, zeitunabhaengig) {
+            if (!projectData.objektdaten) projectData.objektdaten = {};
+
+            const config = MOD_CONFIG[id];
+            let berechnete = 0;
+
+            if (zeitunabhaengig) {
+                const erfolgt = document.getElementById(id + '_erfolgt')?.value || '';
+                projectData.objektdaten[id + '_erfolgt'] = erfolgt;
+                berechnete = erfolgt === 'ja' ? config.max : 0;
+            } else {
+                const jahr = document.getElementById(id + '_jahr')?.value || '';
+                projectData.objektdaten[id + '_jahr'] = jahr;
+                berechnete = berechneModPunkteAusJahr(id, jahr);
+            }
+
+            // Automatisch berechnete Punkte eintragen
+            const punkteInput = document.getElementById(id + '_punkte');
+            if (punkteInput) {
+                punkteInput.value = berechnete;
+                punkteInput.style.borderColor = '#ffc107'; // Gelb = auto-berechnet
+            }
+            projectData.objektdaten[id + '_punkte'] = berechnete;
+
+            saveProject(true);
+            updateModernisierungsSumme();
+        }
+
+        // Bei manueller Punkte-Änderung
+        function onModPunkteChange(id) {
+            if (!projectData.objektdaten) projectData.objektdaten = {};
+
+            const punkteInput = document.getElementById(id + '_punkte');
+            const punkte = parseFloat(punkteInput?.value) || 0;
+            const config = MOD_CONFIG[id];
+
+            // Validierung: Max nicht überschreiten
+            const validPunkte = Math.min(Math.max(punkte, 0), config.max);
+            punkteInput.value = validPunkte;
+            punkteInput.style.borderColor = '#28a745'; // Grün = manuell angepasst
+
+            projectData.objektdaten[id + '_punkte'] = validPunkte;
+            saveProject(true);
+            updateModernisierungsSumme();
+        }
+
+        function berechneModPunkteAusJahr(id, jahrStr) {
+            const config = MOD_CONFIG[id];
+            if (!config) return 0;
+
+            const jahr = parseInt(jahrStr);
+            if (!jahr || isNaN(jahr)) return 0;
+
+            const aktuellesJahr = new Date().getFullYear();
+            const alter = aktuellesJahr - jahr;
+
+            if (alter <= 5) return config.punkte[0];
+            if (alter <= 10) return config.punkte[1];
+            if (alter <= 15) return config.punkte[2];
+            if (alter <= 20) return config.punkte[3];
+            return 0;
+        }
+
+        function updateModernisierungsSumme() {
+            const felder = Object.keys(MOD_CONFIG);
+            let summe = 0;
+
+            felder.forEach(id => {
+                const punkte = parseFloat(projectData.objektdaten?.[id + '_punkte']) || 0;
+                summe += punkte;
+
+                // Farbgebung des Eingabefelds
+                const punkteInput = document.getElementById(id + '_punkte');
+                if (punkteInput) {
+                    punkteInput.style.background = punkte > 0 ? '#d4edda' : '#fff3cd';
+                }
+            });
+
+            const gesamtEl = document.getElementById('modPunkteGesamt');
+            const gradEl = document.getElementById('modGrad');
+
+            if (gesamtEl) gesamtEl.textContent = summe.toFixed(1).replace('.', ',');
+
+            if (gradEl) {
+                let grad = '';
+                let color = '';
+                if (summe <= 4) { grad = 'nicht/kaum modernisiert'; color = '#e53e3e'; }
+                else if (summe <= 11) { grad = 'teilweise modernisiert'; color = '#ed8936'; }
+                else if (summe <= 18) { grad = 'überwiegend modernisiert'; color = '#48bb78'; }
+                else { grad = 'umfassend modernisiert'; color = '#2f855a'; }
+                gradEl.innerHTML = `<span style="color: ${color};">${grad} (${summe.toFixed(1).replace('.', ',')} Pkt.)</span>`;
+            }
+        }
+
+        function saveModBemerkung() {
+            if (!projectData.objektdaten) projectData.objektdaten = {};
+            projectData.objektdaten.mod_grundriss_bemerkung = document.getElementById('mod_grundriss_bemerkung')?.value || '';
+            saveProject(true);
+        }
+
+        function loadObjektdaten() {
+            const obj = projectData.objektdaten || {};
+
+            // Selects laden
+            const selects = ['lage', 'umgebung', 'geschossigkeit', 'form', 'topografie', 'boden', 'altlasten',
+                            'einfriedung', 'befestigung', 'bepflanzung', 'stellplaetze',
+                            'fundamente', 'keller', 'aussenwand', 'innenwand', 'decken', 'treppen',
+                            'dachkonstruktion', 'dachdeckung', 'fenster', 'verglasung', 'heizung', 'elektro', 'zustand'];
+
+            selects.forEach(key => {
+                const el = document.getElementById('obj_' + key);
+                if (el && obj[key]) el.value = obj[key];
+            });
+
+            // Checkboxen laden
+            if (obj.immissionen && Array.isArray(obj.immissionen)) {
+                document.querySelectorAll('input[name="obj_immissionen"]').forEach(cb => {
+                    cb.checked = obj.immissionen.includes(cb.value);
+                });
+            }
+
+            // Textarea
+            const bemerkung = document.getElementById('obj_aussen_bemerkung');
+            if (bemerkung && obj.aussen_bemerkung) bemerkung.value = obj.aussen_bemerkung;
+
+            // Einfriedung Checkboxen laden
+            if (obj.einfriedung && Array.isArray(obj.einfriedung)) {
+                document.querySelectorAll('input[name="obj_einfriedung"]').forEach(cb => {
+                    cb.checked = obj.einfriedung.includes(cb.value);
+                });
+            }
+
+            // Grundriss-Bemerkung laden
+            const grundrissBemerkung = document.getElementById('mod_grundriss_bemerkung');
+            if (grundrissBemerkung && obj.mod_grundriss_bemerkung) {
+                grundrissBemerkung.value = obj.mod_grundriss_bemerkung;
+            }
+
+            // Modernisierungspunkte laden und Summe berechnen
+            setTimeout(() => updateModernisierungsSumme(), 100);
+        }
+
+        function saveObjektdaten() {
+            const getVal = (id) => document.getElementById(id)?.value || '';
+
+            // Checkboxen sammeln - Immissionen
+            const immissionen = [];
+            document.querySelectorAll('input[name="obj_immissionen"]:checked').forEach(cb => {
+                immissionen.push(cb.value);
+            });
+
+            // Checkboxen sammeln - Einfriedung (Mehrfachauswahl)
+            const einfriedung = [];
+            document.querySelectorAll('input[name="obj_einfriedung"]:checked').forEach(cb => {
+                einfriedung.push(cb.value);
+            });
+
+            // Modernisierungspunkte beibehalten (neue Struktur mit _jahr, _erfolgt, _punkte)
+            const bestehendeModPunkte = {};
+            const modFelder = ['mod_dach', 'mod_fenster', 'mod_elektro', 'mod_sanitaer', 'mod_heizung', 'mod_fassade', 'mod_baeder', 'mod_innenausbau', 'mod_grundriss'];
+            modFelder.forEach(key => {
+                ['_jahr', '_erfolgt', '_punkte'].forEach(suffix => {
+                    if (projectData.objektdaten?.[key + suffix] !== undefined) {
+                        bestehendeModPunkte[key + suffix] = projectData.objektdaten[key + suffix];
+                    }
+                });
+            });
+
+            projectData.objektdaten = {
+                ...bestehendeModPunkte,  // Modernisierungspunkte beibehalten
+                lage: getVal('obj_lage'),
+                umgebung: getVal('obj_umgebung'),
+                geschossigkeit: getVal('obj_geschossigkeit'),
+                form: getVal('obj_form'),
+                topografie: getVal('obj_topografie'),
+                boden: getVal('obj_boden'),
+                altlasten: getVal('obj_altlasten'),
+                immissionen: immissionen,
+                einfriedung: einfriedung,  // Jetzt Array statt String
+                befestigung: getVal('obj_befestigung'),
+                bepflanzung: getVal('obj_bepflanzung'),
+                stellplaetze: getVal('obj_stellplaetze'),
+                aussen_bemerkung: getVal('obj_aussen_bemerkung'),
+                fundamente: getVal('obj_fundamente'),
+                keller: getVal('obj_keller'),
+                aussenwand: getVal('obj_aussenwand'),
+                innenwand: getVal('obj_innenwand'),
+                decken: getVal('obj_decken'),
+                treppen: getVal('obj_treppen'),
+                dachkonstruktion: getVal('obj_dachkonstruktion'),
+                dachdeckung: getVal('obj_dachdeckung'),
+                fenster: getVal('obj_fenster'),
+                verglasung: getVal('obj_verglasung'),
+                heizung: getVal('obj_heizung'),
+                elektro: getVal('obj_elektro'),
+                zustand: getVal('obj_zustand')
+            };
+
+            saveProject(true);
+        }
+
+        // ==================== PLÄNE ====================
+
+        function renderPlaene() {
+            let plansHtml = '';
+
+            if (projectData.bauplaene.length === 0) {
+                plansHtml = `
+                    <div class="empty-state">
+                        <div class="icon">📄</div>
+                        <p>Noch keine Pläne hochgeladen</p>
+                    </div>
+                `;
+            } else {
+                plansHtml = projectData.bauplaene.map(plan => {
+                    const geschossNames = plan.geschossIds
+                        .map(id => projectData.geschosse.find(g => g.id === id)?.kuerzel)
+                        .filter(Boolean)
+                        .join(', ') || 'Nicht zugeordnet';
+
+                    return `
+                        <div class="plan-card" onclick="openPlanViewer('${plan.id}')">
+                            <div class="plan-preview">
+                                ${plan.thumbnail ? `<img src="${plan.thumbnail}" alt="${plan.name}">` : '📄'}
+                            </div>
+                            <div class="plan-info">
+                                <h4>${plan.name}</h4>
+                                <span>${geschossNames}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            const objektordner = projectData.deckblatt?.objektordnerLink || '';
+
+            return `
+                <div class="card" style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); border: 2px solid #42a5f5;">
+                    <h3 style="color: #1565c0; margin-bottom: 12px;">📁 Objektordner (Google Drive / Cloud)</h3>
+                    <div class="form-group">
+                        <label>Link zum Objektordner (statt Datei-Upload)</label>
+                        <input type="url" id="objektordnerLink" value="${objektordner}"
+                               placeholder="https://drive.google.com/drive/folders/..."
+                               onchange="saveObjektordnerLink()" style="font-size: 0.9rem;">
+                    </div>
+                    ${objektordner ? `
+                        <a href="${objektordner}" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 8px;">
+                            🔗 Ordner öffnen
+                        </a>
+                    ` : ''}
+                </div>
+
+                <div class="card">
+                    <h2>Baupläne (lokal)</h2>
+                    <button class="btn btn-outline btn-block" onclick="openPlanModal()">
+                        + Plan hochladen (optional)
+                    </button>
+                    <div class="plan-grid">
+                        ${plansHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function openPlanModal() {
+            // Geschoss-Dropdown füllen
+            const select = document.getElementById('planGeschoss');
+            select.innerHTML = projectData.geschosse.map(g =>
+                `<option value="${g.id}">${g.name} (${g.kuerzel})</option>`
+            ).join('');
+
+            document.getElementById('planFile').value = '';
+            document.getElementById('planName').value = '';
+            document.getElementById('planModal').classList.add('active');
+        }
+
+        function closePlanModal() {
+            document.getElementById('planModal').classList.remove('active');
+        }
+
+        function previewPlan(input) {
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                // Auto-fill name from filename
+                const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+                document.getElementById('planName').value = nameWithoutExt;
+            }
+        }
+
+        function savePlan() {
+            const fileInput = document.getElementById('planFile');
+            const name = document.getElementById('planName').value;
+            const geschossSelect = document.getElementById('planGeschoss');
+
+            if (!fileInput.files || !fileInput.files[0]) {
+                showToast('Bitte eine Datei auswählen');
+                return;
+            }
+
+            if (!name) {
+                showToast('Bitte einen Namen eingeben');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const geschossIds = Array.from(geschossSelect.selectedOptions).map(opt => opt.value);
+
+                const plan = {
+                    id: 'plan_' + Date.now(),
+                    name: name,
+                    dateiname: file.name,
+                    dataUrl: e.target.result,
+                    thumbnail: file.type.startsWith('image/') ? e.target.result : null,
+                    geschossIds: geschossIds,
+                    annotationen: {
+                        freihand: [],
+                        texte: []
+                    }
+                };
+
+                projectData.bauplaene.push(plan);
+                saveProject();
+                closePlanModal();
+                renderCurrentPage();
+                showToast('Plan gespeichert');
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        // ==================== GESCHOSSE ====================
+
+        function openFloorModal() {
+            document.getElementById('floorName').value = '';
+            document.getElementById('floorKuerzel').value = '';
+
+            // Quick-Select Buttons generieren
+            const container = document.getElementById('floorQuickSelect');
+            const existingKuerzel = projectData.geschosse.map(g => g.kuerzel);
+
+            container.innerHTML = GESCHOSSTYPEN.map(typ => {
+                const exists = existingKuerzel.includes(typ.kuerzel);
+                return `
+                    <button class="floor-quick-btn ${exists ? 'disabled' : ''}"
+                            onclick="${exists ? '' : `addQuickFloor('${typ.kuerzel}', '${typ.name}')`}"
+                            ${exists ? 'disabled' : ''}>
+                        <span class="kuerzel">${typ.kuerzel}</span>
+                        <span class="name">${typ.name}</span>
+                    </button>
+                `;
+            }).join('');
+
+            document.getElementById('floorModal').classList.add('active');
+        }
+
+        function closeFloorModal() {
+            document.getElementById('floorModal').classList.remove('active');
+        }
+
+        function addQuickFloor(kuerzel, name) {
+            const floor = {
+                id: 'floor_' + Date.now(),
+                name: name,
+                kuerzel: kuerzel,
+                raeume: []
+            };
+
+            projectData.geschosse.push(floor);
+
+            // Geschosse nach logischer Reihenfolge sortieren
+            sortGeschosse();
+
+            saveProject();
+            closeFloorModal();
+            renderNavigation();
+            navigateTo('geschoss_' + floor.id);
+            showToast(`${name} hinzugefügt`);
+        }
+
+        function sortGeschosse() {
+            const order = GESCHOSSTYPEN.map(t => t.kuerzel);
+            projectData.geschosse.sort((a, b) => {
+                const idxA = order.indexOf(a.kuerzel);
+                const idxB = order.indexOf(b.kuerzel);
+                // Unbekannte Geschosse ans Ende
+                return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+            });
+        }
+
+        function saveCustomFloor() {
+            const name = document.getElementById('floorName').value;
+            const kuerzel = document.getElementById('floorKuerzel').value;
+
+            if (!name || !kuerzel) {
+                showToast('Bitte Name und Kürzel eingeben');
+                return;
+            }
+
+            // Prüfen ob Kürzel schon existiert
+            if (projectData.geschosse.some(g => g.kuerzel === kuerzel)) {
+                showToast('Dieses Kürzel existiert bereits');
+                return;
+            }
+
+            const floor = {
+                id: 'floor_' + Date.now(),
+                name: name,
+                kuerzel: kuerzel,
+                raeume: []
+            };
+
+            projectData.geschosse.push(floor);
+            saveProject();
+            closeFloorModal();
+            renderNavigation();
+            navigateTo('geschoss_' + floor.id);
+            showToast('Geschoss hinzugefügt');
+        }
+
+        function deleteFloor(floorId) {
+            const floor = projectData.geschosse.find(g => g.id === floorId);
+            if (!floor) return;
+
+            const hasRooms = floor.raeume && floor.raeume.length > 0;
+            const confirmMsg = hasRooms
+                ? `"${floor.name}" enthält ${floor.raeume.length} Räume. Wirklich löschen?`
+                : `"${floor.name}" wirklich löschen?`;
+
+            if (confirm(confirmMsg)) {
+                projectData.geschosse = projectData.geschosse.filter(g => g.id !== floorId);
+                saveProject();
+                navigateTo('deckblatt');
+                showToast('Geschoss gelöscht');
+            }
+        }
+
+        // Raum-Vorlagen für schnelles Hinzufügen
+        const RAUM_VORLAGEN = {
+            allgemein: [
+                { name: 'Treppenhaus', kuerzel: 'TH' },
+                { name: 'Flur', kuerzel: 'FL' },
+                { name: 'Hausanschlussraum', kuerzel: 'HAR' },
+                { name: 'Kellerflur', kuerzel: 'KFL' },
+                { name: 'Waschküche', kuerzel: 'WK' },
+                { name: 'Fahrradraum', kuerzel: 'FR' }
+            ],
+            wohnung: [
+                { name: 'Flur', kuerzel: 'FL' },
+                { name: 'Wohnzimmer', kuerzel: 'WZ' },
+                { name: 'Schlafzimmer', kuerzel: 'SZ' },
+                { name: 'Kinderzimmer', kuerzel: 'KI' },
+                { name: 'Küche', kuerzel: 'KÜ' },
+                { name: 'Bad', kuerzel: 'BA' },
+                { name: 'WC', kuerzel: 'WC' },
+                { name: 'Abstellraum', kuerzel: 'AR' },
+                { name: 'Balkon', kuerzel: 'BK' }
+            ],
+            gewerbe: [
+                { name: 'Büro', kuerzel: 'BÜ' },
+                { name: 'Laden', kuerzel: 'LA' },
+                { name: 'Lager', kuerzel: 'LG' },
+                { name: 'WC', kuerzel: 'WC' },
+                { name: 'Teeküche', kuerzel: 'TK' },
+                { name: 'Empfang', kuerzel: 'EM' }
+            ]
+        };
+
+        function renderGeschoss(floorId) {
+            const floor = projectData.geschosse.find(g => g.id === floorId);
+            if (!floor) return '<div class="card">Geschoss nicht gefunden</div>';
+
+            // Initialisiere Einheiten-Struktur falls nicht vorhanden
+            if (!floor.einheiten) {
+                floor.einheiten = { we: 0, ge: 0 };
+            }
+            if (!floor.allgemein) {
+                floor.allgemein = [];
+            }
+            if (!floor.units) {
+                floor.units = [];
+            }
+
+            // Zugeordnete Pläne
+            const zugeordnetePlaene = projectData.bauplaene.filter(p => p.geschossIds.includes(floorId));
+            let plaeneHtml = zugeordnetePlaene.length > 0 ? `
+                <div style="margin-bottom: 16px;">
+                    ${zugeordnetePlaene.map(p => `
+                        <button class="btn btn-outline btn-sm" onclick="openPlanViewer('${p.id}')" style="margin-right: 8px; margin-bottom: 8px;">
+                            📄 ${p.name}
+                        </button>
+                    `).join('')}
+                </div>
+            ` : '';
+
+            // Einheiten-Konfiguration
+            const einheitenHtml = `
+                <div class="card" style="background: var(--bg); margin-bottom: 0;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Wohneinheiten (WE)</label>
+                            <input type="number" min="0" value="${floor.einheiten.we}"
+                                   onchange="updateEinheiten('${floorId}', 'we', this.value)" style="text-align: center;">
+                        </div>
+                        <div class="form-group">
+                            <label>Gewerbeeinheiten (GE)</label>
+                            <input type="number" min="0" value="${floor.einheiten.ge}"
+                                   onchange="updateEinheiten('${floorId}', 'ge', this.value)" style="text-align: center;">
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Allgemeinbereiche
+            let allgemeinHtml = `
+                <div class="unit-section">
+                    <div class="unit-header" onclick="toggleSection(this)">
+                        <span>🏢 Allgemeinbereiche</span>
+                        <span class="unit-badge">${floor.allgemein.length} Räume</span>
+                    </div>
+                    <div class="unit-content">
+                        <div class="quick-add-buttons">
+                            ${RAUM_VORLAGEN.allgemein.map(r => `
+                                <button class="quick-add-btn" onclick="quickAddRoom('${floorId}', 'allgemein', null, '${r.name}', '${r.kuerzel}')">+ ${r.name}</button>
+                            `).join('')}
+                        </div>
+                        <div class="room-list">
+                            ${floor.allgemein.map((room, idx) => renderRoomItem(floorId, 'allgemein', null, room, idx)).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Wohneinheiten
+            let weHtml = '';
+            for (let i = 0; i < floor.einheiten.we; i++) {
+                const unit = floor.units.find(u => u.typ === 'WE' && u.nummer === i + 1) || { typ: 'WE', nummer: i + 1, raeume: [] };
+                if (!floor.units.find(u => u.typ === 'WE' && u.nummer === i + 1)) {
+                    floor.units.push(unit);
+                }
+                weHtml += renderUnit(floorId, unit, i);
+            }
+
+            // Gewerbeeinheiten
+            let geHtml = '';
+            for (let i = 0; i < floor.einheiten.ge; i++) {
+                const unit = floor.units.find(u => u.typ === 'GE' && u.nummer === i + 1) || { typ: 'GE', nummer: i + 1, raeume: [] };
+                if (!floor.units.find(u => u.typ === 'GE' && u.nummer === i + 1)) {
+                    floor.units.push(unit);
+                }
+                geHtml += renderUnit(floorId, unit, i);
+            }
+
+            // Massenvoreinstellung HTML
+            const massenHtml = `
+                <div class="card" style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9); border: 2px solid #66bb6a;">
+                    <h3 style="color: #2e7d32; margin-bottom: 12px;">⚡ Massenvoreinstellung für ${floor.kuerzel}</h3>
+                    <p style="font-size: 0.85rem; color: #388e3c; margin-bottom: 12px;">SKL-Wert auf alle Räume/Bauteile dieses Geschosses anwenden:</p>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn btn-sm" style="background: #48bb78; color: white;" onclick="massenSklSetzen('${floorId}', 1)">SKL 1 (sehr gut)</button>
+                        <button class="btn btn-sm" style="background: #68d391; color: white;" onclick="massenSklSetzen('${floorId}', 2)">SKL 2 (gut)</button>
+                        <button class="btn btn-sm" style="background: #ecc94b; color: #744210;" onclick="massenSklSetzen('${floorId}', 3)">SKL 3 (mittel)</button>
+                        <button class="btn btn-sm" style="background: #ed8936; color: white;" onclick="massenSklSetzen('${floorId}', 4)">SKL 4 (schlecht)</button>
+                        <button class="btn btn-sm" style="background: #e53e3e; color: white;" onclick="massenSklSetzen('${floorId}', 5)">SKL 5 (mangelhaft)</button>
+                    </div>
+                </div>
+            `;
+
+            return `
+                <div class="card">
+                    <h2>
+                        ${floor.name}
+                        <button class="delete-btn" onclick="deleteFloor('${floorId}')">Löschen</button>
+                    </h2>
+                    ${plaeneHtml}
+                    ${einheitenHtml}
+                </div>
+                ${massenHtml}
+                ${allgemeinHtml}
+                ${weHtml}
+                ${geHtml}
+            `;
+        }
+
+        // Massenvoreinstellung: SKL für alle Räume eines Geschosses setzen
+        function massenSklSetzen(floorId, skl) {
+            const floor = projectData.geschosse.find(g => g.id === floorId);
+            if (!floor) return;
+
+            const sklText = ['', 'sehr gut', 'gut', 'mittel', 'schlecht', 'mangelhaft'][skl];
+            if (!confirm(`SKL ${skl} (${sklText}) für ALLE Räume in ${floor.name} setzen?\n\nDies überschreibt bestehende SKL-Werte!`)) {
+                return;
+            }
+
+            let count = 0;
+
+            // Alle Räume durchgehen
+            const setRoomSkl = (room) => {
+                if (!room.bauteile) room.bauteile = {};
+                RAUM_BAUTEILE.forEach(bt => {
+                    if (!room.bauteile[bt.key]) room.bauteile[bt.key] = {};
+                    room.bauteile[bt.key].skl = skl;
+                });
+                count++;
+            };
+
+            // Allgemeinbereiche
+            (floor.allgemein || []).forEach(setRoomSkl);
+
+            // Einheiten
+            (floor.units || []).forEach(unit => {
+                (unit.raeume || []).forEach(setRoomSkl);
+            });
+
+            saveProject(true);
+            renderCurrentPage();
+            showToast(`SKL ${skl} auf ${count} Räume in ${floor.kuerzel} angewendet`);
+        }
+
+        function renderUnit(floorId, unit, index) {
+            const vorlagen = unit.typ === 'WE' ? RAUM_VORLAGEN.wohnung : RAUM_VORLAGEN.gewerbe;
+            const icon = unit.typ === 'WE' ? '🏠' : '🏪';
+            const label = unit.typ === 'WE' ? `Wohnung ${unit.nummer}` : `Gewerbe ${unit.nummer}`;
+
+            return `
+                <div class="unit-section">
+                    <div class="unit-header" onclick="toggleSection(this)">
+                        <span>${icon} ${label}</span>
+                        <span class="unit-badge">${unit.raeume.length} Räume</span>
+                    </div>
+                    <div class="unit-content">
+                        <div class="quick-add-buttons">
+                            ${vorlagen.map(r => `
+                                <button class="quick-add-btn" onclick="quickAddRoom('${floorId}', 'unit', '${unit.typ}_${unit.nummer}', '${r.name}', '${r.kuerzel}')">+ ${r.name}</button>
+                            `).join('')}
+                        </div>
+                        <div class="room-list">
+                            ${unit.raeume.map((room, idx) => renderRoomItem(floorId, 'unit', `${unit.typ}_${unit.nummer}`, room, idx)).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderRoomItem(floorId, bereich, unitKey, room, idx) {
+            const flaeche = room.flaeche || 0;
+            const bauteilCount = room.bauteile ? Object.keys(room.bauteile).filter(k => room.bauteile[k].wert).length : 0;
+
+            // Durchschnittliche SKL berechnen
+            let avgSkl = '-';
+            if (room.bauteile) {
+                const sklValues = Object.values(room.bauteile).filter(b => b.skl).map(b => b.skl);
+                if (sklValues.length > 0) {
+                    avgSkl = (sklValues.reduce((a, b) => a + b, 0) / sklValues.length).toFixed(1);
+                }
+            }
+
+            return `
+                <div class="room-item" onclick="openRoomModal('${floorId}', '${bereich}', '${unitKey}', ${idx})">
+                    <div class="room-info">
+                        <h3>${room.nummer || ''} ${room.name}</h3>
+                        <span>${bauteilCount} Bauteile erfasst</span>
+                    </div>
+                    <div class="room-actions">
+                        ${flaeche > 0 ? `<span class="badge">${flaeche.toFixed(1)} m²</span>` : ''}
+                        <span class="badge" style="background: var(--accent);">SKL ${avgSkl}</span>
+                        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteRoom('${floorId}', '${bereich}', '${unitKey}', ${idx})" style="padding: 4px 8px; margin-left: 8px;">✕</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleSection(header) {
+            const content = header.nextElementSibling;
+            content.style.display = content.style.display === 'none' ? 'block' : 'none';
+            header.classList.toggle('collapsed');
+        }
+
+        function updateEinheiten(floorId, typ, value) {
+            const floor = projectData.geschosse.find(g => g.id === floorId);
+            if (!floor) return;
+
+            floor.einheiten[typ] = parseInt(value) || 0;
+            saveProject(true);
+            renderCurrentPage();
+        }
+
+        function quickAddRoom(floorId, bereich, unitKey, name, kuerzel) {
+            const floor = projectData.geschosse.find(g => g.id === floorId);
+            if (!floor) return;
+
+            // Zähle vorhandene Räume mit gleichem Kürzel für Nummerierung
+            let allRooms = [...floor.allgemein];
+            floor.units.forEach(u => allRooms = allRooms.concat(u.raeume));
+            const sameType = allRooms.filter(r => r.name === name).length;
+            const nummer = sameType > 0 ? `${kuerzel}${sameType + 1}` : kuerzel;
+
+            const room = {
+                nummer: nummer,
+                name: name,
+                elemente: []
+            };
+
+            if (bereich === 'allgemein') {
+                floor.allgemein.push(room);
+            } else {
+                const [typ, num] = unitKey.split('_');
+                const unit = floor.units.find(u => u.typ === typ && u.nummer === parseInt(num));
+                if (unit) {
+                    unit.raeume.push(room);
+                }
+            }
+
+            saveProject(true);
+            renderCurrentPage();
+            showToast(`${name} hinzugefügt`);
+        }
+
+        function deleteRoom(floorId, bereich, unitKey, idx) {
+            if (!confirm('Raum löschen?')) return;
+
+            const floor = projectData.geschosse.find(g => g.id === floorId);
+            if (!floor) return;
+
+            if (bereich === 'allgemein') {
+                floor.allgemein.splice(idx, 1);
+            } else {
+                const [typ, num] = unitKey.split('_');
+                const unit = floor.units.find(u => u.typ === typ && u.nummer === parseInt(num));
+                if (unit) {
+                    unit.raeume.splice(idx, 1);
+                }
+            }
+
+            saveProject(true);
+            renderCurrentPage();
+        }
+
+        // ==================== RÄUME ====================
+
+        let currentBereich = null;
+        let currentUnitKey = null;
+
+        // Raum-relevante Bauteile (Subset für Räume)
+        const RAUM_BAUTEILE = [
+            { key: 'fussboden', label: 'Fußboden', optionen: BAUTEIL_OPTIONEN.fussboden },
+            { key: 'wand', label: 'Wandoberfläche', optionen: BAUTEIL_OPTIONEN.oberflaeche_wand },
+            { key: 'decke', label: 'Deckenoberfläche', optionen: BAUTEIL_OPTIONEN.oberflaeche_decke },
+            { key: 'tuer', label: 'Türen', optionen: BAUTEIL_OPTIONEN.tueren },
+            { key: 'fenster', label: 'Fenster', optionen: BAUTEIL_OPTIONEN.fenster },
+            { key: 'heizung', label: 'Heizung', optionen: ['Heizkörper', 'Fußbodenheizung', 'Wandheizung', 'keine'] },
+            { key: 'elektro', label: 'Elektro', optionen: ['zeitgemäß', 'ausreichend', 'veraltet', 'Erneuerungsbedarf'] },
+            { key: 'sanitaer', label: 'Sanitär', optionen: ['Standard', 'gehoben', 'einfach', 'Erneuerungsbedarf', 'nicht vorhanden'] }
+        ];
+
+        function openRoomModal(floorId, bereich = 'allgemein', unitKey = null, index = null) {
+            currentFloorId = floorId;
+            currentBereich = bereich;
+            currentUnitKey = unitKey;
+            currentRoomIndex = index;
+
+            document.getElementById('roomModal').classList.add('active');
+            document.getElementById('roomModalTitle').textContent = index !== null ? 'Raum bearbeiten' : 'Neuer Raum';
+
+            // Bauteile-Grid generieren
+            const bauteileHtml = RAUM_BAUTEILE.map(bt => {
+                const opts = bt.optionen.map(o => `<option value="${o}">${o}</option>`).join('');
+                return `
+                    <div class="bauteil-select">
+                        <label>${bt.label}</label>
+                        <select id="bt_${bt.key}">
+                            <option value="">--</option>
+                            ${opts}
+                        </select>
+                        <select id="bt_${bt.key}_skl" style="margin-top: 4px;">
+                            <option value="">SKL</option>
+                            <option value="1">1 - sehr gut</option>
+                            <option value="2">2 - gut</option>
+                            <option value="3">3 - mittel</option>
+                            <option value="4">4 - schlecht</option>
+                            <option value="5">5 - mangelhaft</option>
+                        </select>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('roomBauteile').innerHTML = bauteileHtml;
+
+            // Felder leeren oder befüllen
+            document.getElementById('roomNummer').value = '';
+            document.getElementById('roomName').value = '';
+            document.getElementById('roomFlaeche').value = '';
+            document.getElementById('roomBemerkung').value = '';
+
+            if (index !== null) {
+                const room = getRoomByPath(floorId, bereich, unitKey, index);
+                if (room) {
+                    document.getElementById('roomNummer').value = room.nummer || '';
+                    document.getElementById('roomName').value = room.name || '';
+                    document.getElementById('roomFlaeche').value = room.flaeche || '';
+                    document.getElementById('roomBemerkung').value = room.bemerkung || '';
+
+                    // Bauteile laden
+                    if (room.bauteile) {
+                        RAUM_BAUTEILE.forEach(bt => {
+                            const data = room.bauteile[bt.key];
+                            if (data) {
+                                const valEl = document.getElementById('bt_' + bt.key);
+                                const sklEl = document.getElementById('bt_' + bt.key + '_skl');
+                                if (valEl && data.wert) valEl.value = data.wert;
+                                if (sklEl && data.skl) sklEl.value = data.skl;
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        function getRoomByPath(floorId, bereich, unitKey, index) {
+            const floor = projectData.geschosse.find(g => g.id === floorId);
+            if (!floor) return null;
+
+            if (bereich === 'allgemein') {
+                return floor.allgemein[index];
+            } else {
+                const [typ, num] = unitKey.split('_');
+                const unit = floor.units.find(u => u.typ === typ && u.nummer === parseInt(num));
+                return unit ? unit.raeume[index] : null;
+            }
+        }
+
+        function closeRoomModal() {
+            document.getElementById('roomModal').classList.remove('active');
+        }
+
+        function addRoomElement(data = null) {
+            const container = document.getElementById('roomElements');
+            const idx = container.children.length;
+
+            const options = Object.entries(KOSTENKATALOG).map(([key, val]) =>
+                `<option value="${key}" ${data && data.typ === key ? 'selected' : ''}>${val.name}</option>`
+            ).join('');
+
+            const html = `
+                <div class="element-entry" data-idx="${idx}">
+                    <div class="element-header">
+                        <h4>Element ${idx + 1}</h4>
+                        <button class="btn btn-danger" onclick="removeElement(${idx})" style="padding: 6px 12px; font-size: 0.85rem;">Entfernen</button>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Raumelement</label>
+                            <select class="element-typ" onchange="updateElementUnit(this)">
+                                <option value="">Auswählen...</option>
+                                ${options}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Menge (<span class="element-unit">${data && data.typ && KOSTENKATALOG[data.typ] ? KOSTENKATALOG[data.typ].einheit : '-'}</span>)</label>
+                            <input type="number" class="element-menge" step="0.01" value="${data ? data.menge : ''}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Beschreibung/Schäden</label>
+                        <textarea class="element-beschreibung" placeholder="Zustand, Mängel...">${data ? data.beschreibung || '' : ''}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Schadensklasse</label>
+                        <div class="skl-buttons element-skl">
+                            ${[1,2,3,4,5].map(i => `<button type="button" class="skl-btn ${data && data.skl === i ? 'active' : ''}" data-skl="${i}">${i}</button>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            container.insertAdjacentHTML('beforeend', html);
+
+            // Add SKL click handlers
+            const newEntry = container.lastElementChild;
+            newEntry.querySelectorAll('.skl-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    this.parentElement.querySelectorAll('.skl-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+        }
+
+        function removeElement(idx) {
+            const elements = document.querySelectorAll('#roomElements .element-entry');
+            if (elements[idx]) elements[idx].remove();
+        }
+
+        function updateElementUnit(select) {
+            const typ = select.value;
+            const unitSpan = select.closest('.element-entry').querySelector('.element-unit');
+            unitSpan.textContent = typ ? KOSTENKATALOG[typ].einheit : '-';
+        }
+
+        function saveRoom() {
+            const nummer = document.getElementById('roomNummer').value;
+            const name = document.getElementById('roomName').value;
+            const flaeche = parseFloat(document.getElementById('roomFlaeche').value) || 0;
+            const bemerkung = document.getElementById('roomBemerkung').value;
+
+            if (!name) {
+                showToast('Bitte Bezeichnung eingeben');
+                return;
+            }
+
+            // Bauteile sammeln
+            const bauteile = {};
+            RAUM_BAUTEILE.forEach(bt => {
+                const wert = document.getElementById('bt_' + bt.key)?.value || '';
+                const skl = document.getElementById('bt_' + bt.key + '_skl')?.value || '';
+                if (wert || skl) {
+                    bauteile[bt.key] = { wert, skl: skl ? parseInt(skl) : null };
+                }
+            });
+
+            const room = { nummer, name, flaeche, bemerkung, bauteile };
+
+            const floor = projectData.geschosse.find(g => g.id === currentFloorId);
+            if (!floor) return;
+
+            // Je nach Bereich speichern
+            if (currentBereich === 'allgemein') {
+                if (currentRoomIndex !== null) {
+                    floor.allgemein[currentRoomIndex] = room;
+                } else {
+                    floor.allgemein.push(room);
+                }
+            } else if (currentUnitKey) {
+                const [typ, num] = currentUnitKey.split('_');
+                const unit = floor.units.find(u => u.typ === typ && u.nummer === parseInt(num));
+                if (unit) {
+                    if (currentRoomIndex !== null) {
+                        unit.raeume[currentRoomIndex] = room;
+                    } else {
+                        unit.raeume.push(room);
+                    }
+                }
+            }
+
+            closeRoomModal();
+            saveProject();
+            renderCurrentPage();
+            showToast('Raum gespeichert');
+        }
+
+        // ==================== DACH ====================
+
+        function renderDach() {
+            return `
+                <div class="card">
+                    <h2>Dachkonstruktion</h2>
+                    <div class="form-group">
+                        <label>Dachform</label>
+                        <select id="dachform" onchange="saveDach()">
+                            <option value="">Auswählen...</option>
+                            <option value="satteldach">Satteldach</option>
+                            <option value="walmdach">Walmdach</option>
+                            <option value="mansarddach">Mansarddach</option>
+                            <option value="flachdach">Flachdach</option>
+                            <option value="pultdach">Pultdach</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Dacheindeckung</label>
+                        <select id="dacheindeckung" onchange="saveDach()">
+                            <option value="">Auswählen...</option>
+                            <option value="ziegel">Tondachziegel</option>
+                            <option value="betondachstein">Betondachsteine</option>
+                            <option value="schiefer">Schiefer</option>
+                            <option value="bitumen">Bitumenbahnen</option>
+                            <option value="metall">Metall</option>
+                        </select>
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label>Dachfläche (m²)</label>
+                            <input type="number" id="dachflaeche" step="0.01" onchange="saveDach()">
+                        </div>
+                        <div class="form-group">
+                            <label>Baujahr Dach</label>
+                            <input type="number" id="dachBaujahr" onchange="saveDach()" placeholder="z.B. 1985">
+                        </div>
+                        <div class="form-group">
+                            <label>Letzte Sanierung</label>
+                            <input type="number" id="dachSanierung" onchange="saveDach()" placeholder="z.B. 2015">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Zustand/Bemerkungen</label>
+                        <textarea id="dachZustand" placeholder="Beschreibung des Zustands..." onchange="saveDach()"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Schadensklasse Dach</label>
+                        <div class="skl-buttons" id="dach-skl">
+                            <button class="skl-btn" data-skl="1" onclick="setDachSkl(1)">1</button>
+                            <button class="skl-btn" data-skl="2" onclick="setDachSkl(2)">2</button>
+                            <button class="skl-btn" data-skl="3" onclick="setDachSkl(3)">3</button>
+                            <button class="skl-btn" data-skl="4" onclick="setDachSkl(4)">4</button>
+                            <button class="skl-btn" data-skl="5" onclick="setDachSkl(5)">5</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadDachData() {
+            const d = projectData.dach || {};
+            if (document.getElementById('dachform')) document.getElementById('dachform').value = d.form || '';
+            if (document.getElementById('dacheindeckung')) document.getElementById('dacheindeckung').value = d.eindeckung || '';
+            if (document.getElementById('dachflaeche')) document.getElementById('dachflaeche').value = d.flaeche || '';
+            if (document.getElementById('dachBaujahr')) document.getElementById('dachBaujahr').value = d.baujahr || '';
+            if (document.getElementById('dachSanierung')) document.getElementById('dachSanierung').value = d.sanierung || '';  // NEU
+            if (document.getElementById('dachZustand')) document.getElementById('dachZustand').value = d.zustand || '';
+
+            document.querySelectorAll('#dach-skl .skl-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.skl) === (d.skl || 1));
+            });
+        }
+
+        function setDachSkl(skl) {
+            document.querySelectorAll('#dach-skl .skl-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.skl) === skl);
+            });
+            saveDach();
+        }
+
+        function saveDach() {
+            const sklBtn = document.querySelector('#dach-skl .skl-btn.active');
+            projectData.dach = {
+                form: document.getElementById('dachform')?.value || '',
+                eindeckung: document.getElementById('dacheindeckung')?.value || '',
+                flaeche: document.getElementById('dachflaeche')?.value || '',
+                baujahr: document.getElementById('dachBaujahr')?.value || '',
+                sanierung: document.getElementById('dachSanierung')?.value || '',  // NEU
+                zustand: document.getElementById('dachZustand')?.value || '',
+                skl: sklBtn ? parseInt(sklBtn.dataset.skl) : 1
+            };
+            saveProject(true);
+        }
+
+        // ==================== FASSADE ====================
+
+        function renderFassade() {
+            return `
+                <div class="card">
+                    <h2>Fassaden</h2>
+                    <div class="form-group">
+                        <label>Aktive Fassade</label>
+                        <select id="activeFassade" onchange="switchFassade(this.value)">
+                            <option value="nord">Nordfassade</option>
+                            <option value="ost">Ostfassade</option>
+                            <option value="sued">Südfassade</option>
+                            <option value="west">Westfassade</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2 id="fassadeTitle">Nordfassade</h2>
+                    <div class="form-group">
+                        <label>Fassadenart</label>
+                        <select id="fassadenart" onchange="saveFassade()">
+                            <option value="">Auswählen...</option>
+                            <option value="putz">Putzfassade</option>
+                            <option value="klinker">Klinkerfassade</option>
+                            <option value="wdvs">WDVS</option>
+                            <option value="holz">Holzfassade</option>
+                            <option value="vhf">Vorgehängte Fassade</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Fassadenfläche (m²)</label>
+                        <input type="number" id="fassadeFlaeche" step="0.01" onchange="saveFassade()">
+                    </div>
+                    <div class="form-group">
+                        <label>Dämmstärke (cm)</label>
+                        <input type="number" id="fassadeDaemmstaerke" step="1" min="0" max="50" placeholder="z.B. 14" onchange="saveFassade()">
+                    </div>
+                    <div class="form-group">
+                        <label>Zustand/Mängel</label>
+                        <textarea id="fassadeZustand" placeholder="Beschreibung..." onchange="saveFassade()"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Schadensklasse</label>
+                        <div class="skl-buttons" id="fassade-skl">
+                            <button class="skl-btn" data-skl="1" onclick="setFassadeSkl(1)">1</button>
+                            <button class="skl-btn" data-skl="2" onclick="setFassadeSkl(2)">2</button>
+                            <button class="skl-btn" data-skl="3" onclick="setFassadeSkl(3)">3</button>
+                            <button class="skl-btn" data-skl="4" onclick="setFassadeSkl(4)">4</button>
+                            <button class="skl-btn" data-skl="5" onclick="setFassadeSkl(5)">5</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadFassadeData() {
+            document.getElementById('activeFassade').value = currentFassade;
+            switchFassade(currentFassade);
+        }
+
+        function switchFassade(fassade) {
+            // Vorherige Fassade speichern
+            saveFassade();
+
+            currentFassade = fassade;
+            const titles = { nord: 'Nordfassade', ost: 'Ostfassade', sued: 'Südfassade', west: 'Westfassade' };
+            document.getElementById('fassadeTitle').textContent = titles[fassade];
+
+            const data = projectData.fassaden[fassade] || {};
+            document.getElementById('fassadenart').value = data.art || '';
+            document.getElementById('fassadeFlaeche').value = data.flaeche || '';
+            document.getElementById('fassadeDaemmstaerke').value = data.daemmstaerke || '';
+            document.getElementById('fassadeZustand').value = data.zustand || '';
+
+            document.querySelectorAll('#fassade-skl .skl-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.skl) === (data.skl || 1));
+            });
+        }
+
+        function setFassadeSkl(skl) {
+            document.querySelectorAll('#fassade-skl .skl-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.skl) === skl);
+            });
+            saveFassade();
+        }
+
+        function saveFassade() {
+            if (!document.getElementById('fassadenart')) return;
+
+            const sklBtn = document.querySelector('#fassade-skl .skl-btn.active');
+            projectData.fassaden[currentFassade] = {
+                art: document.getElementById('fassadenart')?.value || '',
+                flaeche: document.getElementById('fassadeFlaeche')?.value || '',
+                daemmstaerke: document.getElementById('fassadeDaemmstaerke')?.value || '',
+                zustand: document.getElementById('fassadeZustand')?.value || '',
+                skl: sklBtn ? parseInt(sklBtn.dataset.skl) : 1
+            };
+            saveProject(true);
+        }
+
+        // ==================== KOSTEN ====================
+
+        function renderKosten() {
+            // Kostenpositionen initialisieren falls nicht vorhanden
+            if (!projectData.kostenpositionen) {
+                projectData.kostenpositionen = [];
+            }
+
+            // Kategorien für Dropdown gruppieren
+            const kategorien = {};
+            Object.entries(KOSTENKATALOG).forEach(([key, val]) => {
+                const kat = val.kategorie || 'Sonstiges';
+                if (!kategorien[kat]) kategorien[kat] = [];
+                kategorien[kat].push({ key, name: val.name, einheit: val.einheit });
+            });
+
+            const katalogOptions = Object.entries(kategorien).map(([kat, items]) =>
+                `<optgroup label="${kat}">
+                    ${items.map(i => `<option value="${i.key}">${i.name} (${i.einheit})</option>`).join('')}
+                </optgroup>`
+            ).join('');
+
+            // Bestehende Positionen rendern
+            const positionenHtml = projectData.kostenpositionen.map((pos, idx) => {
+                const item = KOSTENKATALOG[pos.typ];
+                const kosten = calculateCost(pos.typ, pos.menge, pos.skl);
+                return `
+                    <tr>
+                        <td>${item?.name || pos.typ}</td>
+                        <td>${pos.menge} ${item?.einheit || ''}</td>
+                        <td>
+                            <div class="skl-mini">
+                                ${[1,2,3,4,5].map(i => `<span class="${pos.skl === i ? 'active' : ''}">${i}</span>`).join('')}
+                            </div>
+                        </td>
+                        <td>${kosten.toLocaleString('de-DE')} €</td>
+                        <td><button class="btn btn-danger btn-sm" onclick="deleteKostenposition(${idx})">✕</button></td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Summen berechnen
+            let positionenTotal = 0;
+            projectData.kostenpositionen.forEach(pos => {
+                positionenTotal += calculateCost(pos.typ, pos.menge, pos.skl);
+            });
+
+            // Dach
+            const dachFlaeche = parseFloat(projectData.dach?.flaeche) || 0;
+            const dachSkl = projectData.dach?.skl || 1;
+            const dachCost = dachFlaeche > 0 ? calculateCost('steildach_belag', dachFlaeche, dachSkl) : 0;
+
+            // Fassaden
+            let fassadeCost = 0;
+            Object.values(projectData.fassaden || {}).forEach(f => {
+                const flaeche = parseFloat(f.flaeche) || 0;
+                if (flaeche > 0) {
+                    fassadeCost += calculateCost('aussenwand_innen', flaeche, f.skl || 1);
+                }
+            });
+
+            const total = positionenTotal + dachCost + fassadeCost;
+
+            return `
+                <div class="card">
+                    <h2>Kostenpositionen erfassen</h2>
+                    <div class="kosten-eingabe">
+                        <div class="form-row" style="align-items: flex-end;">
+                            <div class="form-group" style="flex: 2;">
+                                <label>Bauteil / Maßnahme</label>
+                                <select id="kostenTyp">
+                                    <option value="">-- Auswählen --</option>
+                                    ${katalogOptions}
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Menge (<span id="kostenEinheit">-</span>)</label>
+                                <input type="number" id="kostenMenge" step="0.01" placeholder="0">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>SKL</label>
+                                <select id="kostenSkl">
+                                    <option value="1">1 - sehr gut</option>
+                                    <option value="2">2 - gut</option>
+                                    <option value="3" selected>3 - mittel</option>
+                                    <option value="4">4 - schlecht</option>
+                                    <option value="5">5 - mangelhaft</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <button class="btn btn-primary" onclick="addKostenposition()">+ Hinzufügen</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Kostenpositionen (${projectData.kostenpositionen.length})</h2>
+                    ${projectData.kostenpositionen.length > 0 ? `
+                        <table class="summary-table">
+                            <thead>
+                                <tr>
+                                    <th>Bauteil</th>
+                                    <th>Menge</th>
+                                    <th>SKL</th>
+                                    <th>Kosten</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${positionenHtml}
+                            </tbody>
+                        </table>
+                    ` : '<p style="color: var(--text-light); text-align: center; padding: 20px;">Noch keine Positionen erfasst</p>'}
+                </div>
+
+                <div class="card">
+                    <h2>Zusammenfassung</h2>
+                    ${(() => {
+                        // Fassadenflächen summieren
+                        let fassadeGesamt = 0;
+                        Object.entries(projectData.fassaden || {}).forEach(([richtung, f]) => {
+                            fassadeGesamt += parseFloat(f.flaeche) || 0;
+                        });
+
+                        // €/m² berechnen
+                        const wohnflaeche = parseFloat(projectData.deckblatt?.wohnflaeche) || 0;
+                        const euroProQm = wohnflaeche > 0 ? Math.round(total / wohnflaeche) : 0;
+                        const euroProQmBrutto = wohnflaeche > 0 ? Math.round((total * 1.19) / wohnflaeche) : 0;
+
+                        return `
+                            <table class="summary-table">
+                                <tbody>
+                                    <tr>
+                                        <td>Kostenpositionen</td>
+                                        <td>${projectData.kostenpositionen.length} Positionen</td>
+                                        <td>${positionenTotal.toLocaleString('de-DE')} €</td>
+                                    </tr>
+                                    ${dachCost > 0 ? `<tr><td>Dach</td><td>${dachFlaeche} m²</td><td>${dachCost.toLocaleString('de-DE')} €</td></tr>` : ''}
+                                    ${fassadeCost > 0 ? `<tr><td>Fassaden (gesamt ${fassadeGesamt.toLocaleString('de-DE')} m²)</td><td>N/O/S/W</td><td>${fassadeCost.toLocaleString('de-DE')} €</td></tr>` : ''}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="total">
+                                        <td colspan="2">Gesamtkosten (netto)</td>
+                                        <td>${total.toLocaleString('de-DE')} €</td>
+                                    </tr>
+                                    <tr class="total">
+                                        <td colspan="2">Gesamtkosten (brutto, 19%)</td>
+                                        <td>${(total * 1.19).toLocaleString('de-DE')} €</td>
+                                    </tr>
+                                    ${wohnflaeche > 0 ? `
+                                        <tr style="background: var(--accent); color: white;">
+                                            <td colspan="2"><strong>Kennwert €/m² Wohnfläche</strong> (${wohnflaeche} m²)</td>
+                                            <td><strong>${euroProQmBrutto.toLocaleString('de-DE')} €/m²</strong></td>
+                                        </tr>
+                                    ` : `
+                                        <tr style="background: var(--border);">
+                                            <td colspan="3" style="text-align: center; color: var(--text-light);">
+                                                Für €/m² Kennwert bitte Wohnfläche im Deckblatt eintragen
+                                            </td>
+                                        </tr>
+                                    `}
+                                </tfoot>
+                            </table>
+                        `;
+                    })()}
+                </div>
+
+                <div class="card">
+                    <button class="btn btn-outline btn-block" onclick="exportToExcel()">
+                        📊 Excel-Export
+                    </button>
+                </div>
+            `;
+        }
+
+        function addKostenposition() {
+            const typ = document.getElementById('kostenTyp').value;
+            const menge = parseFloat(document.getElementById('kostenMenge').value) || 0;
+            const skl = parseInt(document.getElementById('kostenSkl').value) || 3;
+
+            if (!typ) {
+                showToast('Bitte Bauteil auswählen');
+                return;
+            }
+            if (menge <= 0) {
+                showToast('Bitte Menge eingeben');
+                return;
+            }
+
+            if (!projectData.kostenpositionen) {
+                projectData.kostenpositionen = [];
+            }
+
+            projectData.kostenpositionen.push({ typ, menge, skl });
+            saveProject();
+
+            // Formular zurücksetzen
+            document.getElementById('kostenTyp').value = '';
+            document.getElementById('kostenMenge').value = '';
+            document.getElementById('kostenSkl').value = '3';
+            document.getElementById('kostenEinheit').textContent = '-';
+
+            renderCurrentPage();
+            showToast('Position hinzugefügt');
+        }
+
+        function deleteKostenposition(idx) {
+            if (confirm('Position löschen?')) {
+                projectData.kostenpositionen.splice(idx, 1);
+                saveProject();
+                renderCurrentPage();
+            }
+        }
+
+        // Einheit aktualisieren wenn Typ gewählt wird
+        document.addEventListener('change', function(e) {
+            if (e.target.id === 'kostenTyp') {
+                const item = KOSTENKATALOG[e.target.value];
+                document.getElementById('kostenEinheit').textContent = item ? item.einheit : '-';
+            }
+        });
+
+        function calculateCost(typ, menge, skl) {
+            const item = KOSTENKATALOG[typ];
+            if (!item) return 0;
+
+            const range = item.skl5 - item.skl1;
+            const factor = (skl - 1) / 4;
+            const preis = item.skl1 + (range * factor);
+
+            return menge * preis;
+        }
+
+        // ==================== PLAN VIEWER ====================
+
+        let currentPlanData = null;
+        let planImage = null;
+        let scale = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        function openPlanViewer(planId) {
+            const plan = projectData.bauplaene.find(p => p.id === planId);
+            if (!plan) return;
+
+            currentPlanId = planId;
+            currentPlanData = plan;
+            document.getElementById('planViewerTitle').textContent = plan.name;
+            document.getElementById('planViewer').classList.add('active');
+
+            // Load image
+            planImage = new Image();
+            planImage.onload = function() {
+                initCanvas();
+                drawPlan();
+            };
+
+            if (plan.dataUrl.startsWith('data:image/')) {
+                planImage.src = plan.dataUrl;
+            } else {
+                // PDF - show placeholder for now
+                showToast('PDF-Vorschau wird geladen...');
+                // TODO: Implement PDF rendering with pdf.js
+            }
+
+            setDrawMode('pan');
+        }
+
+        function closePlanViewer() {
+            document.getElementById('planViewer').classList.remove('active');
+            saveProject();
+        }
+
+        function initCanvas() {
+            const container = document.getElementById('planViewerContent');
+            const planCanvas = document.getElementById('planCanvas');
+            const annotationCanvas = document.getElementById('annotationCanvas');
+
+            planCanvas.width = container.clientWidth;
+            planCanvas.height = container.clientHeight;
+            annotationCanvas.width = container.clientWidth;
+            annotationCanvas.height = container.clientHeight;
+
+            // Reset view
+            scale = Math.min(
+                planCanvas.width / planImage.width,
+                planCanvas.height / planImage.height
+            ) * 0.9;
+            offsetX = (planCanvas.width - planImage.width * scale) / 2;
+            offsetY = (planCanvas.height - planImage.height * scale) / 2;
+
+            // Setup annotation canvas events
+            annotationCanvas.addEventListener('mousedown', startDrawing);
+            annotationCanvas.addEventListener('mousemove', draw);
+            annotationCanvas.addEventListener('mouseup', stopDrawing);
+            annotationCanvas.addEventListener('touchstart', handleTouch);
+            annotationCanvas.addEventListener('touchmove', handleTouch);
+            annotationCanvas.addEventListener('touchend', stopDrawing);
+        }
+
+        function drawPlan() {
+            const planCanvas = document.getElementById('planCanvas');
+            const ctx = planCanvas.getContext('2d');
+
+            ctx.clearRect(0, 0, planCanvas.width, planCanvas.height);
+            ctx.drawImage(planImage, offsetX, offsetY, planImage.width * scale, planImage.height * scale);
+
+            drawAnnotations();
+        }
+
+        function drawAnnotations() {
+            const annotationCanvas = document.getElementById('annotationCanvas');
+            const ctx = annotationCanvas.getContext('2d');
+
+            ctx.clearRect(0, 0, annotationCanvas.width, annotationCanvas.height);
+
+            if (!currentPlanData) return;
+
+            // Draw freehand paths
+            ctx.strokeStyle = '#e53e3e';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            currentPlanData.annotationen.freihand.forEach(path => {
+                if (path.punkte.length < 2) return;
+                ctx.beginPath();
+                ctx.moveTo(path.punkte[0][0] * scale + offsetX, path.punkte[0][1] * scale + offsetY);
+                for (let i = 1; i < path.punkte.length; i++) {
+                    ctx.lineTo(path.punkte[i][0] * scale + offsetX, path.punkte[i][1] * scale + offsetY);
+                }
+                ctx.stroke();
+            });
+
+            // Draw texts
+            ctx.fillStyle = '#e53e3e';
+            ctx.font = '16px sans-serif';
+            currentPlanData.annotationen.texte.forEach(t => {
+                ctx.fillText(t.text, t.x * scale + offsetX, t.y * scale + offsetY);
+            });
+        }
+
+        function setDrawMode(mode) {
+            drawMode = mode;
+            document.getElementById('btnPan').classList.toggle('active', mode === 'pan');
+            document.getElementById('btnDraw').classList.toggle('active', mode === 'draw');
+            document.getElementById('btnText').classList.toggle('active', mode === 'text');
+
+            const canvas = document.getElementById('annotationCanvas');
+            canvas.style.cursor = mode === 'pan' ? 'grab' : (mode === 'draw' ? 'crosshair' : 'text');
+        }
+
+        function startDrawing(e) {
+            if (drawMode === 'draw') {
+                isDrawing = true;
+                currentPath = [];
+                const rect = e.target.getBoundingClientRect();
+                const x = (e.clientX - rect.left - offsetX) / scale;
+                const y = (e.clientY - rect.top - offsetY) / scale;
+                currentPath.push([x, y]);
+            } else if (drawMode === 'text') {
+                const rect = e.target.getBoundingClientRect();
+                const x = (e.clientX - rect.left - offsetX) / scale;
+                const y = (e.clientY - rect.top - offsetY) / scale;
+
+                const text = prompt('Text eingeben:');
+                if (text) {
+                    currentPlanData.annotationen.texte.push({ x, y, text });
+                    drawAnnotations();
+                }
+            }
+        }
+
+        function draw(e) {
+            if (!isDrawing || drawMode !== 'draw') return;
+
+            const rect = e.target.getBoundingClientRect();
+            const x = (e.clientX - rect.left - offsetX) / scale;
+            const y = (e.clientY - rect.top - offsetY) / scale;
+            currentPath.push([x, y]);
+
+            // Draw current stroke
+            const ctx = document.getElementById('annotationCanvas').getContext('2d');
+            ctx.strokeStyle = '#e53e3e';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+
+            if (currentPath.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(currentPath[currentPath.length - 2][0] * scale + offsetX, currentPath[currentPath.length - 2][1] * scale + offsetY);
+                ctx.lineTo(x * scale + offsetX, y * scale + offsetY);
+                ctx.stroke();
+            }
+        }
+
+        function stopDrawing() {
+            if (isDrawing && currentPath.length > 1) {
+                currentPlanData.annotationen.freihand.push({ punkte: currentPath });
+            }
+            isDrawing = false;
+            currentPath = [];
+        }
+
+        function handleTouch(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent(
+                e.type === 'touchstart' ? 'mousedown' :
+                e.type === 'touchmove' ? 'mousemove' : 'mouseup',
+                { clientX: touch.clientX, clientY: touch.clientY }
+            );
+            e.target.dispatchEvent(mouseEvent);
+        }
+
+        function undoAnnotation() {
+            if (currentPlanData.annotationen.freihand.length > 0) {
+                currentPlanData.annotationen.freihand.pop();
+            } else if (currentPlanData.annotationen.texte.length > 0) {
+                currentPlanData.annotationen.texte.pop();
+            }
+            drawAnnotations();
+        }
+
+        // ==================== AIRTABLE ====================
+
+        function openAirtableSettings() {
+            document.getElementById('airtableApiKey').value = AIRTABLE_CONFIG.apiKey;
+            document.getElementById('airtableBaseId').value = AIRTABLE_CONFIG.baseId;
+            document.getElementById('airtableTableName').value = AIRTABLE_CONFIG.tableName;
+            document.getElementById('airtableModal').classList.add('active');
+        }
+
+        function closeAirtableModal() {
+            document.getElementById('airtableModal').classList.remove('active');
+        }
+
+        function saveAirtableSettings() {
+            const apiKey = document.getElementById('airtableApiKey').value.trim();
+            const baseId = document.getElementById('airtableBaseId').value.trim();
+            const tableName = document.getElementById('airtableTableName').value.trim() || 'Objekte';
+
+            AIRTABLE_CONFIG.apiKey = apiKey;
+            AIRTABLE_CONFIG.baseId = baseId;
+            AIRTABLE_CONFIG.tableName = tableName;
+
+            localStorage.setItem('airtable_api_key', apiKey);
+            localStorage.setItem('airtable_base_id', baseId);
+            localStorage.setItem('airtable_table_name', tableName);
+
+            closeAirtableModal();
+            renderCurrentPage();
+            showToast('Airtable-Einstellungen gespeichert');
+        }
+
+        async function testAirtableConnection() {
+            const apiKey = document.getElementById('airtableApiKey').value.trim();
+            const baseId = document.getElementById('airtableBaseId').value.trim();
+            const tableName = document.getElementById('airtableTableName').value.trim() || 'Objekte';
+
+            if (!apiKey || !baseId) {
+                showToast('Bitte API Key und Base ID eingeben');
+                return;
+            }
+
+            showToast('Teste Verbindung...');
+
+            try {
+                const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=1`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast(`Verbindung OK! ${data.records.length > 0 ? 'Datensätze gefunden.' : 'Tabelle ist leer.'}`);
+                } else {
+                    const error = await response.json();
+                    showToast('Fehler: ' + (error.error?.message || response.statusText));
+                }
+            } catch (err) {
+                showToast('Verbindungsfehler: ' + err.message);
+            }
+        }
+
+        let airtableRecords = [];
+
+        async function loadAirtableRecords() {
+            console.log('loadAirtableRecords() aufgerufen');
+            console.log('Config:', AIRTABLE_CONFIG);
+
+            const statusEl = document.getElementById('airtableStatus');
+
+            if (!AIRTABLE_CONFIG.apiKey || !AIRTABLE_CONFIG.baseId) {
+                const msg = 'Airtable nicht konfiguriert';
+                console.error(msg);
+                if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + msg + '</span>';
+                return;
+            }
+
+            if (statusEl) statusEl.innerHTML = '<span style="color:orange;">Lade...</span>';
+
+            try {
+                const url = `https://api.airtable.com/v0/${AIRTABLE_CONFIG.baseId}/${encodeURIComponent(AIRTABLE_CONFIG.tableName)}?maxRecords=100`;
+                console.log('Fetching:', url);
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${AIRTABLE_CONFIG.apiKey}`
+                    }
+                });
+
+                console.log('Response status:', response.status);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    const msg = 'Fehler: ' + (error.error?.message || response.statusText);
+                    console.error(msg, error);
+                    if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + msg + '</span>';
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('Received data:', data);
+                airtableRecords = data.records || [];
+
+                // Select-Dropdown füllen
+                const select = document.getElementById('airtableRecordSelect');
+                console.log('Select element:', select);
+
+                if (select) {
+                    select.innerHTML = '<option value="">-- Objekt auswählen (' + airtableRecords.length + ' gefunden) --</option>';
+                    airtableRecords.forEach(record => {
+                        const f = record.fields;
+                        const strasse = f['Straße'] || f.Strasse || f.Adresse || '';
+                        const plz = f.PLZ || '';
+                        const stadt = f.Stadt || f.Ort || '';
+                        const label = strasse ? `${strasse}, ${plz} ${stadt}`.trim() : record.id;
+                        select.innerHTML += `<option value="${record.id}">${label}</option>`;
+                    });
+                    if (statusEl) statusEl.innerHTML = '<span style="color:green;">' + airtableRecords.length + ' Objekte geladen</span>';
+                } else {
+                    console.error('Select element nicht gefunden!');
+                    if (statusEl) statusEl.innerHTML = '<span style="color:red;">UI-Fehler</span>';
+                }
+            } catch (err) {
+                console.error('Fetch error:', err);
+                if (statusEl) statusEl.innerHTML = '<span style="color:red;">Fehler: ' + err.message + '</span>';
+            }
+        }
+
+        async function loadSelectedRecord() {
+            const select = document.getElementById('airtableRecordSelect');
+            const recordId = select?.value;
+
+            if (!recordId) {
+                showToast('Bitte ein Objekt auswählen');
+                return;
+            }
+
+            // Finde den Record aus dem Cache
+            const record = airtableRecords.find(r => r.id === recordId);
+            if (record) {
+                // Projekt_ID aus verknüpfter Projekte-Tabelle laden
+                let projektId = null;
+                if (record.fields.projekte && record.fields.projekte.length > 0) {
+                    projektId = await fetchProjektId(record.fields.projekte[0]);
+                }
+
+                mapAirtableToProject(record.fields, record.id, projektId);
+                saveProject();
+                renderCurrentPage();
+                showToast('Objekt geladen: ' + (record.fields['Straße'] || record.fields.Adresse || recordId));
+            } else {
+                // Fallback: direkt von Airtable laden
+                loadFromAirtable(recordId);
+            }
+        }
+
+        async function fetchProjektId(projektRecordId) {
+            try {
+                const url = `https://api.airtable.com/v0/${AIRTABLE_CONFIG.baseId}/Projekte/${projektRecordId}`;
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${AIRTABLE_CONFIG.apiKey}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.fields.Projekt_ID || data.fields['Projekt-ID'] || projektRecordId;
+                }
+            } catch (err) {
+                console.error('Fehler beim Laden der Projekt_ID:', err);
+            }
+            return projektRecordId;
+        }
+
+        async function loadFromAirtable(recordId) {
+            if (!recordId) {
+                showToast('Keine Record ID');
+                return;
+            }
+
+            if (!AIRTABLE_CONFIG.apiKey || !AIRTABLE_CONFIG.baseId) {
+                showToast('Airtable nicht konfiguriert');
+                return;
+            }
+
+            showToast('Lade Daten aus Airtable...');
+
+            try {
+                const url = `https://api.airtable.com/v0/${AIRTABLE_CONFIG.baseId}/${encodeURIComponent(AIRTABLE_CONFIG.tableName)}/${recordId}`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${AIRTABLE_CONFIG.apiKey}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    showToast('Fehler: ' + (error.error?.message || response.statusText));
+                    return;
+                }
+
+                const record = await response.json();
+                mapAirtableToProject(record.fields, record.id);
+                saveProject();
+                renderCurrentPage();
+                showToast('Projekt aus Airtable geladen');
+            } catch (err) {
+                showToast('Ladefehler: ' + err.message);
+            }
+        }
+
+        function mapAirtableToProject(fields, recordId = '', projektId = null) {
+            // Flexibles Mapping - versucht verschiedene Feldnamen (inkl. Umlaute)
+            const get = (keys) => {
+                for (const key of keys) {
+                    if (fields[key] !== undefined && fields[key] !== null && fields[key] !== '') {
+                        return fields[key];
+                    }
+                }
+                return '';
+            };
+
+            // Adresse zusammenbauen (Straße mit ß zuerst!)
+            const strasse = get(['Straße', 'Strasse', 'strasse', 'Adresse', 'adresse']);
+            const plz = get(['PLZ', 'plz', 'Postleitzahl']);
+            const stadt = get(['Stadt', 'Ort', 'stadt', 'ort']);
+            const adresse = strasse ? `${strasse}, ${plz} ${stadt}`.replace(/,\s*$/, '').trim() : '';
+
+            // Deckblatt befüllen
+            projectData.deckblatt = {
+                ...projectData.deckblatt,
+                adresse: adresse,
+                projektnummer: projektId || get(['Projekt_ID', 'Projekt-ID', 'ProjektID']) || recordId,
+                baujahr: get(['Baujahr', 'baujahr', 'Bj', 'Bj.']),
+                vollgeschosse: get(['Vollgeschosse', 'vollgeschosse', 'Geschosse', 'Etagen']),
+                wohnflaeche: get(['Wohnfläche', 'wohnflaeche', 'Wohnflaeche', 'WFL', 'wfl', 'Wohnfläche m²']),
+                nutzflaeche: get(['Nutzfläche', 'nutzflaeche', 'Nutzflaeche', 'NFL', 'nfl', 'Nutzfläche m²']),
+                grundstueck: get(['Grundstück', 'grundstueck', 'Grundstueck', 'Grundstücksfläche', 'Grundstück m²']),
+                gebaeudeArt: mapGebaeudeArt(get(['Gebaeudetyp', 'Gebäudeart', 'gebaeudeArt', 'Objekttyp', 'Typ', 'Art'])),
+                wohneinheiten: get(['Wohneinheiten', 'wohneinheiten', 'WE']),
+                heizungsart: get(['Heizungsart', 'heizungsart', 'Heizung']),
+                airtableRecordId: recordId
+            };
+
+            document.getElementById('projectName').textContent = projectData.deckblatt.adresse || 'Projekt geladen';
+        }
+
+        function mapGebaeudeArt(value) {
+            if (!value) return '';
+            const v = value.toLowerCase();
+            if (v.includes('efh') && v.includes('frei')) return 'efh_freistehend';
+            if (v.includes('efh') || v.includes('einfamilien')) return 'efh_reihe_dhh';
+            if (v.includes('zfh') || v.includes('zweifamilien')) return 'zfh';
+            if (v.includes('mfh') && (v.includes('7') || v.includes('+'))) return 'mfh_7_plus';
+            if (v.includes('mfh') || v.includes('mehrfamilien')) return 'mfh_3_6';
+            if (v.includes('wohn') && v.includes('geschäft')) return 'wohn_geschaeftshaus';
+            if (v.includes('büro') || v.includes('buero')) return 'buerogebaeude';
+            if (v.includes('gemischt')) return 'gemischt';
+            if (v.includes('wohnhochhaus') || v.includes('hochhaus')) return 'wohnhochhaus';
+            return '';
+        }
+
+        // ==================== SPEICHERN & LADEN ====================
+
+        function saveProject(silent = false) {
+            localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData));
+            if (!silent) showToast('Projekt gespeichert');
+        }
+
+        function loadProject() {
+            // Try new format first
+            let saved = localStorage.getItem('immokonzept_project_v2');
+            if (saved) {
+                projectData = JSON.parse(saved);
+                // Sicherstellen dass neue Felder existieren
+                if (!projectData.kostenpositionen) projectData.kostenpositionen = [];
+                if (!projectData.objektdaten) projectData.objektdaten = {};
+                return;
+            }
+
+            // Migrate from old format
+            saved = localStorage.getItem('immokonzept_project');
+            if (saved) {
+                const oldData = JSON.parse(saved);
+                migrateOldData(oldData);
+                saveProject(true);
+                localStorage.removeItem('immokonzept_project');
+            }
+        }
+
+        function migrateOldData(oldData) {
+            // Deckblatt übernehmen
+            projectData.deckblatt = oldData.deckblatt || {};
+
+            // Alte feste Geschosse in Array konvertieren
+            const oldFloors = {
+                'keller': { name: 'Kellergeschoss', kuerzel: 'KG' },
+                'eg': { name: 'Erdgeschoss', kuerzel: 'EG' },
+                'og1': { name: '1. Obergeschoss', kuerzel: '1.OG' },
+                'dg': { name: 'Dachgeschoss', kuerzel: 'DG' }
+            };
+
+            if (oldData.raeume) {
+                Object.entries(oldFloors).forEach(([key, info]) => {
+                    if (oldData.raeume[key] && oldData.raeume[key].length > 0) {
+                        projectData.geschosse.push({
+                            id: 'floor_' + key,
+                            name: info.name,
+                            kuerzel: info.kuerzel,
+                            raeume: oldData.raeume[key]
+                        });
+                    }
+                });
+            }
+
+            // Dach und Fassaden übernehmen
+            projectData.dach = oldData.dach || { skl: 1 };
+            projectData.fassaden = oldData.fassaden || { nord: {}, ost: {}, sued: {}, west: {} };
+
+            showToast('Projekt wurde in neues Format migriert');
+        }
+
+        // ==================== EXCEL EXPORT ====================
+
+        function exportExcel() {
+            showToast('Excel-Export wird erstellt...');
+
+            const wb = XLSX.utils.book_new();
+
+            // === DECKBLATT ===
+            const d = projectData.deckblatt;
+            const gebaeudeArtName = GEBAEUDEARTEN[d.gebaeudeArt] || d.gebaeudeArt || '';
+
+            const deckblattData = [
+                ['', '', 'Datenaufnahme'],
+                [''],
+                ['Formelles'],
+                [''],
+                ['Adresse', '', d.adresse || ''],
+                ['Projektnummer', '', d.projektnummer || ''],
+                ['Datum', '', d.datum || ''],
+                ['Uhrzeit', '', d.uhrzeitVon || '', 'bis', d.uhrzeitBis || ''],
+                ['Beteiligte', '', d.beteiligte || ''],
+                [''],
+                ['Gebäude'],
+                [''],
+                ['Gebäudeart', '', gebaeudeArtName],
+                ['Baujahr', '', d.baujahr || ''],
+                ['Vollgeschosse', '', d.vollgeschosse || ''],
+                ['Wohnfläche', '', d.wohnflaeche || '', 'm²'],
+                ['Nutzfläche', '', d.nutzflaeche || '', 'm²'],
+                ['Grundstücksfläche', '', d.grundstueck || '', 'm²'],
+                ['BRI', '', d.bri || '', 'm³']
+            ];
+            const wsDeckblatt = XLSX.utils.aoa_to_sheet(deckblattData);
+            XLSX.utils.book_append_sheet(wb, wsDeckblatt, 'Deckblatt');
+
+            // === GESCHOSS-SHEETS ===
+            projectData.geschosse.forEach(floor => {
+                const sheetData = [[floor.name], ['']];
+
+                // Einheiten-Info
+                if (floor.einheiten) {
+                    sheetData.push(['Einheiten:', `${floor.einheiten.we} WE, ${floor.einheiten.ge} GE`]);
+                    sheetData.push(['']);
+                }
+
+                // Hilfsfunktion für Raum-Export
+                const exportRoom = (room, bereich) => {
+                    sheetData.push([bereich, room.nummer || '', room.name]);
+                    sheetData.push(['Raumelement', 'Menge', 'Einheit', 'SKl', 'Beschreibung/Schäden', 'Kosten']);
+
+                    if (room.elemente) {
+                        room.elemente.forEach(el => {
+                            const item = KOSTENKATALOG[el.typ];
+                            const cost = calculateCost(el.typ, el.menge, el.skl);
+                            sheetData.push([
+                                item ? item.name : el.typ,
+                                el.menge,
+                                item ? item.einheit : '',
+                                el.skl,
+                                el.beschreibung || '',
+                                cost.toFixed(2) + ' €'
+                            ]);
+                        });
+                    }
+                    sheetData.push(['']);
+                };
+
+                // Allgemeinbereiche
+                if (floor.allgemein && floor.allgemein.length > 0) {
+                    sheetData.push(['=== ALLGEMEINBEREICHE ===']);
+                    floor.allgemein.forEach(room => exportRoom(room, 'Allgemein'));
+                }
+
+                // Einheiten
+                if (floor.units) {
+                    floor.units.forEach(unit => {
+                        if (unit.raeume.length > 0) {
+                            const label = unit.typ === 'WE' ? `Wohnung ${unit.nummer}` : `Gewerbe ${unit.nummer}`;
+                            sheetData.push([`=== ${label.toUpperCase()} ===`]);
+                            unit.raeume.forEach(room => exportRoom(room, label));
+                        }
+                    });
+                }
+
+                // Alte Struktur (Abwärtskompatibilität)
+                if (floor.raeume && floor.raeume.length > 0) {
+                    floor.raeume.forEach(room => exportRoom(room, 'Raum'));
+                }
+
+                // Sheet-Name auf 31 Zeichen begrenzen
+                const sheetName = floor.name.substring(0, 31);
+                const ws = XLSX.utils.aoa_to_sheet(sheetData);
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            });
+
+            // === KOSTENSCHÄTZUNG ===
+            const kostenData = [
+                ['Kostenschätzung'],
+                [''],
+                ['Bereich', 'Anzahl Elemente', 'Geschätzte Kosten']
+            ];
+
+            let total = 0;
+            projectData.geschosse.forEach(floor => {
+                let floorCost = 0;
+                let count = 0;
+
+                // Allgemeinbereiche
+                if (floor.allgemein) {
+                    floor.allgemein.forEach(room => {
+                        if (room.elemente) {
+                            room.elemente.forEach(el => {
+                                floorCost += calculateCost(el.typ, el.menge, el.skl);
+                                count++;
+                            });
+                        }
+                    });
+                }
+
+                // Einheiten
+                if (floor.units) {
+                    floor.units.forEach(unit => {
+                        unit.raeume.forEach(room => {
+                            if (room.elemente) {
+                                room.elemente.forEach(el => {
+                                    floorCost += calculateCost(el.typ, el.menge, el.skl);
+                                    count++;
+                                });
+                            }
+                        });
+                    });
+                }
+
+                // Alte Struktur
+                if (floor.raeume) {
+                    floor.raeume.forEach(room => {
+                        if (room.elemente) {
+                            room.elemente.forEach(el => {
+                                floorCost += calculateCost(el.typ, el.menge, el.skl);
+                                count++;
+                            });
+                        }
+                    });
+                }
+
+                kostenData.push([floor.name, count, floorCost.toFixed(2) + ' €']);
+                total += floorCost;
+            });
+
+            // Dach
+            const dachFlaeche = parseFloat(projectData.dach?.flaeche) || 0;
+            const dachCost = calculateCost('steildach_belag', dachFlaeche, projectData.dach?.skl || 1);
+            kostenData.push(['Dach', '-', dachCost.toFixed(2) + ' €']);
+            total += dachCost;
+
+            // Fassaden
+            let fassadeCost = 0;
+            Object.values(projectData.fassaden).forEach(f => {
+                const flaeche = parseFloat(f.flaeche) || 0;
+                fassadeCost += calculateCost('aussenwand_innen', flaeche, f.skl || 1);
+            });
+            kostenData.push(['Fassaden', '-', fassadeCost.toFixed(2) + ' €']);
+            total += fassadeCost;
+
+            kostenData.push(['']);
+            kostenData.push(['GESAMTKOSTEN (netto)', '', total.toFixed(2) + ' €']);
+            kostenData.push(['GESAMTKOSTEN (brutto, 19%)', '', (total * 1.19).toFixed(2) + ' €']);
+
+            const wsKosten = XLSX.utils.aoa_to_sheet(kostenData);
+            XLSX.utils.book_append_sheet(wb, wsKosten, 'Kostenschätzung');
+
+            // Download
+            const filename = `ImmoKonzept_${d.projektnummer || 'Export'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, filename);
+
+            showToast('Excel-Export: ' + filename);
+        }
+
+        // ==================== UTILITIES ====================
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // ==================== JSON EXPORT für n8n ====================
+
+        function exportJSON() {
+            const d = projectData.deckblatt;
+
+            // SKL-Labels für bessere Lesbarkeit
+            const sklLabels = {
+                1: 'sehr gut',
+                2: 'gut',
+                3: 'mittel',
+                4: 'ausreichend',
+                5: 'mangelhaft'
+            };
+
+            // Hilfsfunktion: SKL zu Text
+            const sklToText = (skl) => sklLabels[skl] || 'nicht bewertet';
+
+            // Hilfsfunktion: Kosten berechnen
+            const getKosten = (typ, menge, skl) => {
+                const cost = calculateCost(typ, menge, skl);
+                return Math.round(cost);
+            };
+
+            // === Gebäudestruktur analysieren ===
+            const geschossAnalyse = projectData.geschosse.map(floor => {
+                let raumCount = 0;
+                let totalFlaeche = 0;
+                let maengel = [];
+                let bauteile = {};
+
+                const analyzeRoom = (room) => {
+                    raumCount++;
+                    if (room.flaeche) totalFlaeche += parseFloat(room.flaeche) || 0;
+                    if (room.bemerkung) maengel.push({ raum: room.name || room.nummer, bemerkung: room.bemerkung });
+
+                    // Bauteile sammeln
+                    if (room.bauteile) {
+                        Object.entries(room.bauteile).forEach(([key, val]) => {
+                            if (val && val !== '') {
+                                if (!bauteile[key]) bauteile[key] = [];
+                                bauteile[key].push({ raum: room.name, wert: val, skl: room.bauteilSkl?.[key] });
+                            }
+                        });
+                    }
+                };
+
+                // Alle Räume durchgehen
+                if (floor.allgemein) floor.allgemein.forEach(analyzeRoom);
+                if (floor.units) floor.units.forEach(u => u.raeume?.forEach(analyzeRoom));
+                if (floor.raeume) floor.raeume.forEach(analyzeRoom);
+
+                return {
+                    id: floor.id,
+                    name: floor.name,
+                    kuerzel: floor.kuerzel,
+                    raumAnzahl: raumCount,
+                    flaecheGesamt: totalFlaeche,
+                    maengel: maengel,
+                    bauteile: bauteile,
+                    einheiten: floor.einheiten || null
+                };
+            });
+
+            // === Zustandsbewertung aggregieren ===
+            const zustandsbewertung = {
+                dach: {
+                    form: projectData.dach?.form || '',
+                    eindeckung: projectData.dach?.eindeckung || '',
+                    baujahr: projectData.dach?.baujahr || '',
+                    sanierung: projectData.dach?.sanierung || '',  // NEU: Letzte Sanierung
+                    skl: projectData.dach?.skl || null,
+                    sklText: sklToText(projectData.dach?.skl),
+                    flaeche: projectData.dach?.flaeche || 0,
+                    bemerkung: projectData.dach?.zustand || ''
+                },
+                fassaden: Object.entries(projectData.fassaden || {}).map(([richtung, f]) => ({
+                    richtung: richtung.charAt(0).toUpperCase() + richtung.slice(1),
+                    material: f.material || '',
+                    skl: f.skl || null,
+                    sklText: sklToText(f.skl),
+                    flaeche: f.flaeche || 0,
+                    bemerkung: f.bemerkung || ''
+                })).filter(f => f.skl || f.bemerkung)
+            };
+
+            // === Kostenschätzung mit DIN 276 ===
+            let gesamtkosten = 0;
+            const kostenNachKategorie = {};
+            const kostenNachDIN276 = {};  // NEU: DIN 276 Zuordnung
+
+            // Kostenpositionen
+            (projectData.kostenpositionen || []).forEach(pos => {
+                const item = KOSTENKATALOG[pos.typ];
+                const kosten = getKosten(pos.typ, pos.menge, pos.skl);
+                const kategorie = item?.kategorie || 'Sonstiges';
+                const din276 = item?.din276 || 0;
+                const din276Gruppe = Math.floor(din276 / 100) * 100; // Hauptgruppe (300, 400, etc.)
+
+                // Nach Kategorie
+                if (!kostenNachKategorie[kategorie]) kostenNachKategorie[kategorie] = { positionen: [], summe: 0 };
+                kostenNachKategorie[kategorie].positionen.push({
+                    bauteil: item?.name || pos.typ,
+                    menge: pos.menge,
+                    einheit: item?.einheit || '',
+                    skl: pos.skl,
+                    kosten: kosten,
+                    din276: din276,
+                    din276_bezeichnung: DIN276_GRUPPEN[din276] || ''
+                });
+                kostenNachKategorie[kategorie].summe += kosten;
+
+                // Nach DIN 276 Kostengruppe
+                if (din276Gruppe > 0) {
+                    if (!kostenNachDIN276[din276Gruppe]) {
+                        kostenNachDIN276[din276Gruppe] = {
+                            bezeichnung: DIN276_GRUPPEN[din276Gruppe] || `KG ${din276Gruppe}`,
+                            untergruppen: {},
+                            summe: 0
+                        };
+                    }
+                    if (!kostenNachDIN276[din276Gruppe].untergruppen[din276]) {
+                        kostenNachDIN276[din276Gruppe].untergruppen[din276] = {
+                            bezeichnung: DIN276_GRUPPEN[din276] || `KG ${din276}`,
+                            positionen: [],
+                            summe: 0
+                        };
+                    }
+                    kostenNachDIN276[din276Gruppe].untergruppen[din276].positionen.push({
+                        bauteil: item?.name || pos.typ,
+                        menge: pos.menge,
+                        kosten: kosten
+                    });
+                    kostenNachDIN276[din276Gruppe].untergruppen[din276].summe += kosten;
+                    kostenNachDIN276[din276Gruppe].summe += kosten;
+                }
+
+                gesamtkosten += kosten;
+            });
+
+            // Dach-Kosten
+            const dachKosten = getKosten('steildach_belag', projectData.dach?.flaeche || 0, projectData.dach?.skl || 1);
+            if (dachKosten > 0) {
+                if (!kostenNachKategorie['Dach']) kostenNachKategorie['Dach'] = { positionen: [], summe: 0 };
+                kostenNachKategorie['Dach'].summe += dachKosten;
+                gesamtkosten += dachKosten;
+            }
+
+            // Fassaden-Kosten
+            let fassadenKosten = 0;
+            Object.values(projectData.fassaden || {}).forEach(f => {
+                fassadenKosten += getKosten('aussenwand_innen', f.flaeche || 0, f.skl || 1);
+            });
+            if (fassadenKosten > 0) {
+                if (!kostenNachKategorie['Fassade']) kostenNachKategorie['Fassade'] = { positionen: [], summe: 0 };
+                kostenNachKategorie['Fassade'].summe += fassadenKosten;
+                gesamtkosten += fassadenKosten;
+            }
+
+            // === Mängelliste sammeln ===
+            const alleMaengel = [];
+            geschossAnalyse.forEach(g => {
+                g.maengel.forEach(m => {
+                    alleMaengel.push({
+                        geschoss: g.kuerzel,
+                        raum: m.raum,
+                        beschreibung: m.bemerkung
+                    });
+                });
+            });
+            if (zustandsbewertung.dach.bemerkung) {
+                alleMaengel.push({ geschoss: 'Dach', raum: '-', beschreibung: zustandsbewertung.dach.bemerkung });
+            }
+            zustandsbewertung.fassaden.forEach(f => {
+                if (f.bemerkung) alleMaengel.push({ geschoss: 'Fassade', raum: f.richtung, beschreibung: f.bemerkung });
+            });
+
+            // === FINALES JSON für n8n ===
+            const exportData = {
+                _meta: {
+                    exportDatum: new Date().toISOString(),
+                    appVersion: '2.0',
+                    format: 'immokonzept-datenaufnahme'
+                },
+
+                // Kapitel 7.2 - Struktur und Nutzung
+                gebaeude: {
+                    adresse: d.adresse || '',
+                    projektnummer: d.projektnummer || '',
+                    gebaeudeArt: GEBAEUDEARTEN[d.gebaeudeArt] || d.gebaeudeArt || '',
+                    baujahr: d.baujahr || '',
+                    vollgeschosse: d.vollgeschosse || '',
+                    wohnflaeche_m2: d.wohnflaeche || '',
+                    nutzflaeche_m2: d.nutzflaeche || '',
+                    grundstueck_m2: d.grundstueck || '',
+                    bri_m3: d.bri || ''
+                },
+
+                // Kapitel 7.3 - Bauzustand
+                besichtigung: {
+                    datum: d.datum || '',
+                    uhrzeitVon: d.uhrzeitVon || '',
+                    uhrzeitBis: d.uhrzeitBis || '',
+                    beteiligte: d.beteiligte || ''
+                },
+
+                // Geschosse mit Details
+                geschosse: geschossAnalyse,
+
+                // Zustandsbewertung Außenbauteile
+                aussenbauteile: zustandsbewertung,
+
+                // Objektdaten (falls erfasst)
+                objektdaten: projectData.objektdaten || {},
+
+                // Modernisierungspunkte nach ImmoWertV-Modell (für RND-Berechnung)
+                modernisierung: (() => {
+                    const obj = projectData.objektdaten || {};
+                    const aktuellesJahr = new Date().getFullYear();
+
+                    const elemente = [
+                        { key: 'mod_dach', name: 'Dacherneuerung (inkl. Wärmedämmung)', max: 4 },
+                        { key: 'mod_fenster', name: 'Fenster und Außentüren', max: 2 },
+                        { key: 'mod_leitungen', name: 'Leitungssysteme (Strom, Gas, Wasser, Abwasser)', max: 2 },
+                        { key: 'mod_heizung', name: 'Heizungsanlage', max: 2 },
+                        { key: 'mod_fassade', name: 'Wärmedämmung Außenwände', max: 4 },
+                        { key: 'mod_baeder', name: 'Bäder', max: 2 },
+                        { key: 'mod_innenausbau', name: 'Innenausbau (Decken, Fußböden, Treppen)', max: 2 },
+                        { key: 'mod_grundriss', name: 'Wesentliche Grundrissverbesserung', max: 2, zeitunabhaengig: true }
+                    ];
+
+                    const result = elemente.map(e => {
+                        const jahr = e.zeitunabhaengig ? null : (parseInt(obj[e.key + '_jahr']) || null);
+                        const punkte = parseFloat(obj[e.key + '_punkte']) || 0;
+
+                        return {
+                            element: e.name,
+                            maxPunkte: e.max,
+                            jahr: jahr,
+                            punkte: punkte
+                        };
+                    });
+
+                    const summe = result.reduce((s, p) => s + p.punkte, 0);
+                    let grad = 'nicht/kaum modernisiert';
+                    if (summe > 4) grad = 'teilweise modernisiert';
+                    if (summe > 10) grad = 'überwiegend modernisiert';
+                    if (summe > 17) grad = 'umfassend modernisiert';
+
+                    return {
+                        elemente: result,
+                        gesamtpunkte: summe,
+                        maxPunkte: 20,
+                        modernisierungsgrad: grad,
+                        berechnungsjahr: aktuellesJahr
+                    };
+                })(),
+
+                // Kapitel 7.8 - Mängel und Schäden
+                maengelliste: alleMaengel,
+
+                // Kostenschätzung (für wirtschaftliche Analyse)
+                kostenschaetzung: {
+                    nachKategorie: kostenNachKategorie,
+                    nachDIN276: kostenNachDIN276,  // NEU: DIN 276 Kostengruppen
+                    gesamtNetto: gesamtkosten,
+                    gesamtBrutto: Math.round(gesamtkosten * 1.19),
+                    // NEU: Kennwert €/m²
+                    kennwert: {
+                        wohnflaeche_m2: parseFloat(d.wohnflaeche) || 0,
+                        euroProQmNetto: (parseFloat(d.wohnflaeche) || 0) > 0 ? Math.round(gesamtkosten / parseFloat(d.wohnflaeche)) : null,
+                        euroProQmBrutto: (parseFloat(d.wohnflaeche) || 0) > 0 ? Math.round((gesamtkosten * 1.19) / parseFloat(d.wohnflaeche)) : null
+                    }
+                },
+
+                // Rohdaten für erweiterte Verarbeitung
+                _rohdaten: {
+                    bauplaene: (projectData.bauplaene || []).map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        geschosse: p.geschosse,
+                        hatAnnotationen: (p.annotationen?.freihand?.length > 0 || p.annotationen?.texte?.length > 0)
+                    })),
+                    airtableRecordId: d.airtableRecordId || null,
+                    objektordnerLink: d.objektordnerLink || null
+                }
+            };
+
+            // Export-Optionen anbieten
+            showExportModal(exportData);
+        }
+
+        function showExportModal(data) {
+            const jsonString = JSON.stringify(data, null, 2);
+
+            // Modal erstellen
+            const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.id = 'exportModal';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 700px; max-height: 90vh;">
+                    <div class="modal-header">
+                        <h2>JSON Export für n8n</h2>
+                        <button class="modal-close" onclick="closeExportModal()">&times;</button>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+                        <button class="btn btn-primary" onclick="downloadJSON()" style="flex: 1;">
+                            JSON herunterladen
+                        </button>
+                        <button class="btn btn-success" onclick="copyToClipboard()" style="flex: 1;">
+                            In Zwischenablage
+                        </button>
+                    </div>
+
+                    <div class="form-group">
+                        <label>n8n Webhook URL (optional - wird gespeichert)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="webhookUrl" placeholder="https://n8n.example.com/webhook/..." style="flex: 1;">
+                            <button class="btn btn-outline" onclick="sendToWebhook()">Senden</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>JSON Vorschau</label>
+                        <textarea id="jsonPreview" readonly style="height: 300px; font-family: monospace; font-size: 12px;">${escapeHtml(jsonString)}</textarea>
+                    </div>
+
+                    <div style="font-size: 0.85rem; color: var(--text-light);">
+                        <strong>Struktur:</strong> gebaeude, besichtigung, geschosse, aussenbauteile, maengelliste, kostenschaetzung
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Daten für spätere Nutzung speichern
+            window._exportData = data;
+
+            // Gespeicherte Webhook URL laden
+            const savedUrl = localStorage.getItem('n8n_webhook_url');
+            if (savedUrl) {
+                document.getElementById('webhookUrl').value = savedUrl;
+            }
+        }
+
+        function closeExportModal() {
+            const modal = document.getElementById('exportModal');
+            if (modal) modal.remove();
+        }
+
+        function downloadJSON() {
+            const data = window._exportData;
+            const d = data.gebaeude;
+            const filename = `Datenaufnahme_${d.projektnummer || 'Export'}_${new Date().toISOString().split('T')[0]}.json`;
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast('JSON heruntergeladen: ' + filename);
+        }
+
+        function copyToClipboard() {
+            const textarea = document.getElementById('jsonPreview');
+            textarea.select();
+            document.execCommand('copy');
+            showToast('JSON in Zwischenablage kopiert');
+        }
+
+        async function sendToWebhook() {
+            const url = document.getElementById('webhookUrl').value.trim();
+            if (!url) {
+                showToast('Bitte Webhook URL eingeben');
+                return;
+            }
+
+            showToast('Sende an n8n...');
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(window._exportData)
+                });
+
+                if (response.ok) {
+                    showToast('Erfolgreich an n8n gesendet!');
+                    // URL speichern für nächstes Mal
+                    localStorage.setItem('n8n_webhook_url', url);
+                } else {
+                    showToast('Fehler: ' + response.statusText);
+                }
+            } catch (err) {
+                showToast('Verbindungsfehler: ' + err.message);
+            }
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(reg => {
+                console.log('Service Worker registered');
+            }).catch(err => console.log('SW registration failed:', err));
+        }
+    </script>
+</body>
+</html>
