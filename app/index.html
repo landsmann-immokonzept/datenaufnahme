@@ -2,10 +2,11 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1a365d">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src *; img-src 'self' data: blob:;">
     <title>ImmoKonzept Datenaufnahme</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -71,6 +72,97 @@
 
         body.offline .offline-badge {
             display: inline-block;
+        }
+
+        /* Save Indicator */
+        .save-indicator {
+            font-size: 0.75rem;
+            padding: 2px 10px;
+            border-radius: 12px;
+            display: inline-block;
+            margin-top: 4px;
+            transition: all 0.3s;
+        }
+        .save-indicator.saved { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); }
+        .save-indicator.unsaved { background: var(--accent); color: white; }
+        .save-indicator.saving { background: var(--success); color: white; }
+
+        /* Sync Badge */
+        .sync-badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: var(--accent);
+            color: white;
+            margin-left: 8px;
+            display: none;
+        }
+        .sync-badge.visible { display: inline-block; }
+
+        /* Nav Badge */
+        .nav-badge {
+            background: var(--danger);
+            color: white;
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+            margin-left: 4px;
+            font-weight: 700;
+            vertical-align: super;
+        }
+
+        /* Project Cards */
+        .project-card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 4px solid transparent;
+        }
+        .project-card:hover { transform: translateY(-1px); box-shadow: 0 6px 12px rgba(0,0,0,0.12); }
+        .project-card.active-project { border-left-color: var(--primary); }
+        .project-card h3 { font-size: 1rem; margin-bottom: 4px; color: var(--text); }
+        .project-card .project-meta { font-size: 0.8rem; color: var(--text-light); }
+        .project-card .project-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+        /* Maengel */
+        .mangel-card {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 8px;
+            border-left: 4px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .mangel-card.prio-niedrig { border-left-color: #48bb78; }
+        .mangel-card.prio-mittel { border-left-color: #ecc94b; }
+        .mangel-card.prio-hoch { border-left-color: #ed8936; }
+        .mangel-card.prio-kritisch { border-left-color: #e53e3e; }
+        .mangel-prio {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .mangel-prio.niedrig { background: #c6f6d5; color: #276749; }
+        .mangel-prio.mittel { background: #fefcbf; color: #744210; }
+        .mangel-prio.hoch { background: #feebc8; color: #7b341e; }
+        .mangel-prio.kritisch { background: #fed7d7; color: #9b2c2c; }
+        .mangel-auto {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            border-left: 3px solid var(--text-light);
+            opacity: 0.85;
         }
 
         nav {
@@ -326,6 +418,36 @@
             gap: 6px;
         }
 
+        .option-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chip {
+            padding: 8px 14px;
+            border-radius: 20px;
+            border: 2px solid var(--border);
+            background: white;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .chip:hover {
+            border-color: var(--primary);
+            background: #f0f7ff;
+        }
+
+        .chip.active {
+            background: var(--chip-active-bg, var(--primary));
+            color: var(--chip-active-color, white);
+            border-color: var(--chip-active-border, var(--primary));
+        }
+
         .skl-btn {
             width: 40px;
             height: 40px;
@@ -448,6 +570,7 @@
             right: 0;
             background: var(--card);
             padding: 16px 20px;
+            padding-bottom: max(16px, env(safe-area-inset-bottom));
             box-shadow: 0 -4px 6px -1px rgba(0,0,0,0.1);
             display: flex;
             gap: 12px;
@@ -700,32 +823,9 @@
             border-color: var(--primary);
         }
 
-        .checkbox-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            padding: 8px 12px;
-            background: var(--bg);
-            border-radius: 6px;
-            transition: all 0.2s;
-        }
-
-        .checkbox-label:hover {
-            background: var(--border);
-        }
-
-        .checkbox-label input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
+        .nav-disabled {
+            opacity: 0.4;
+            pointer-events: none;
         }
 
         .raum-bauteile {
@@ -803,7 +903,11 @@
     <header>
         <h1>ImmoKonzept Datenaufnahme</h1>
         <div class="subtitle" id="projectName">Kein Projekt geladen</div>
-        <span class="offline-badge">Offline-Modus</span>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <span class="save-indicator saved" id="saveIndicator">Gespeichert</span>
+            <span class="sync-badge" id="syncBadge"></span>
+            <span class="offline-badge">Offline-Modus</span>
+        </div>
     </header>
 
     <nav>
@@ -816,7 +920,7 @@
         <!-- Dynamisch generiert -->
     </main>
 
-    <div class="bottom-actions">
+    <div class="bottom-actions" id="bottomActions">
         <button class="btn btn-outline" onclick="saveProject()" style="flex: 1;">
             Speichern
         </button>
@@ -825,6 +929,9 @@
         </button>
         <button class="btn btn-primary" onclick="exportJSON()" style="flex: 1;">
             JSON/n8n
+        </button>
+        <button class="btn" onclick="exportPDF()" style="flex: 1; background: var(--accent); color: white;">
+            PDF
         </button>
     </div>
 
@@ -980,6 +1087,282 @@
     <div id="toast" class="toast"></div>
 
     <script>
+        // ==================== INDEXEDDB WRAPPER ====================
+
+        const DB_NAME = 'immokonzept-datenaufnahme';
+        const DB_VERSION = 1;
+        let _db = null;
+        let activeProjectId = null;
+
+        function openDB() {
+            if (_db) {
+                try { _db.transaction('settings', 'readonly'); return Promise.resolve(_db); }
+                catch(e) { _db = null; }
+            }
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, DB_VERSION);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('projects')) {
+                        db.createObjectStore('projects', { keyPath: 'id' });
+                    }
+                    if (!db.objectStoreNames.contains('settings')) {
+                        db.createObjectStore('settings', { keyPath: 'key' });
+                    }
+                    if (!db.objectStoreNames.contains('sync-queue')) {
+                        const sq = db.createObjectStore('sync-queue', { keyPath: 'id', autoIncrement: true });
+                        sq.createIndex('projectId', 'projectId', { unique: false });
+                        sq.createIndex('status', 'status', { unique: false });
+                    }
+                };
+                req.onsuccess = (e) => {
+                    _db = e.target.result;
+                    _db.onversionchange = () => { _db.close(); _db = null; };
+                    _db.onclose = () => { _db = null; };
+                    resolve(_db);
+                };
+                req.onerror = (e) => reject(e.target.error);
+                req.onblocked = () => {
+                    console.warn('IDB blocked by another tab');
+                    reject(new Error('Datenbank blockiert - andere Tabs schliessen'));
+                };
+            });
+        }
+
+        async function dbGet(store, key) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readonly');
+                const req = tx.objectStore(store).get(key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function dbPut(store, data) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readwrite');
+                const req = tx.objectStore(store).put(data);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function dbGetAll(store) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readonly');
+                const req = tx.objectStore(store).getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function dbDelete(store, key) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readwrite');
+                const req = tx.objectStore(store).delete(key);
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function dbGetByIndex(store, indexName, value) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readonly');
+                const idx = tx.objectStore(store).index(indexName);
+                const req = idx.getAll(value);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function migrateFromLocalStorage() {
+            const saved = localStorage.getItem('immokonzept_project_v2');
+            if (!saved) return;
+            try {
+                const data = JSON.parse(saved);
+                const id = 'proj_' + Date.now();
+                await dbPut('projects', {
+                    id: id,
+                    name: data.deckblatt?.adresse || 'Migriertes Projekt',
+                    created: new Date().toISOString(),
+                    modified: new Date().toISOString(),
+                    status: 'aktiv',
+                    data: data
+                });
+                // Migrate settings
+                const webhookUrl = localStorage.getItem('sync_webhook_url');
+                if (webhookUrl) await dbPut('settings', { key: 'sync_webhook_url', value: webhookUrl });
+                const airtableKey = localStorage.getItem('airtable_api_key');
+                if (airtableKey) await dbPut('settings', { key: 'airtable_api_key', value: airtableKey });
+                const airtableBase = localStorage.getItem('airtable_base_id');
+                if (airtableBase) await dbPut('settings', { key: 'airtable_base_id', value: airtableBase });
+                const airtableTable = localStorage.getItem('airtable_table_name');
+                if (airtableTable) await dbPut('settings', { key: 'airtable_table_name', value: airtableTable });
+
+                // All IDB writes succeeded, now safe to remove localStorage
+                activeProjectId = id;
+                localStorage.removeItem('immokonzept_project_v2');
+                localStorage.removeItem('immokonzept_project');
+                localStorage.removeItem('sync_webhook_url');
+                localStorage.removeItem('airtable_api_key');
+                localStorage.removeItem('airtable_base_id');
+                localStorage.removeItem('airtable_table_name');
+                showToast('Projekt aus localStorage migriert');
+            } catch (e) {
+                console.error('Migration failed:', e);
+            }
+        }
+
+        // ==================== AUTO-SAVE ====================
+
+        let _saveTimer = null;
+        let _saveChain = Promise.resolve(); // Serializes concurrent saves
+
+        function scheduleSave() {
+            updateSaveIndicator('unsaved');
+            clearTimeout(_saveTimer);
+            _saveTimer = setTimeout(() => saveProject(true), 500);
+        }
+
+        function updateSaveIndicator(state) {
+            const el = document.getElementById('saveIndicator');
+            if (!el) return;
+            el.className = 'save-indicator ' + state;
+            if (state === 'saved') el.textContent = 'Gespeichert';
+            else if (state === 'unsaved') el.textContent = 'Ungespeichert';
+            else if (state === 'saving') el.textContent = 'Speichert...';
+        }
+
+        // ==================== OFFLINE SYNC ====================
+
+        function buildExportPayload(data) {
+            // Reuse the same structure as exportJSON but return the object
+            const d = data.deckblatt || {};
+            const sklLabels = { 1: 'sehr gut', 2: 'gut', 3: 'mittel', 4: 'ausreichend', 5: 'mangelhaft' };
+            const sklToText = (skl) => sklLabels[skl] || 'nicht bewertet';
+
+            return {
+                _meta: {
+                    exportDatum: new Date().toISOString(),
+                    appVersion: '3.0',
+                    format: 'immokonzept-datenaufnahme',
+                    syncType: 'auto'
+                },
+                gebaeude: {
+                    adresse: d.adresse || '',
+                    projektnummer: d.projektnummer || '',
+                    gebaeudeArt: GEBAEUDEARTEN[d.gebaeudeArt] || d.gebaeudeArt || '',
+                    baujahr: d.baujahr || '',
+                    vollgeschosse: d.vollgeschosse || '',
+                    wohnflaeche_m2: d.wohnflaeche || '',
+                    nutzflaeche_m2: d.nutzflaeche || '',
+                    grundstueck_m2: d.grundstueck || '',
+                    bri_m3: d.bri || ''
+                },
+                geschosse: (data.geschosse || []).map(f => ({ id: f.id, name: f.name, kuerzel: f.kuerzel })),
+                maengel: data.maengel || [],
+                kostenpositionen: data.kostenpositionen || [],
+                _projectId: activeProjectId
+            };
+        }
+
+        async function queueSync(projectId, dataSnapshot) {
+            if (!_db) return;
+            try {
+                const syncUrl = await dbGet('settings', 'sync_webhook_url');
+                if (!syncUrl?.value) return; // No sync configured
+
+                // Deep-clone only when we actually need to sync
+                const payload = buildExportPayload(dataSnapshot || JSON.parse(JSON.stringify(projectData)));
+
+                // Deduplicate: remove existing pending entries for same project
+                try {
+                    const existing = await dbGetByIndex('sync-queue', 'projectId', projectId);
+                    for (const e of existing) {
+                        try { await dbDelete('sync-queue', e.id); } catch(delEx) { console.warn('Sync dedup delete failed:', delEx); }
+                    }
+                } catch(ex) {
+                    console.warn('Sync dedup query failed, pruning queue:', ex);
+                    // Fallback: prune queue to max 50 entries
+                    try {
+                        const all = await dbGetAll('sync-queue');
+                        if (all.length > 50) {
+                            const toDelete = all.slice(0, all.length - 50);
+                            for (const e of toDelete) { await dbDelete('sync-queue', e.id); }
+                        }
+                    } catch(pEx) {}
+                }
+
+                await dbPut('sync-queue', {
+                    projectId: projectId,
+                    timestamp: new Date().toISOString(),
+                    type: 'project-update',
+                    payload: payload,
+                    status: 'pending'
+                });
+                updateSyncBadge();
+                if (navigator.onLine) processSync();
+            } catch (e) {
+                console.error('Queue sync error:', e);
+            }
+        }
+
+        async function processSync() {
+            if (!_db || !navigator.onLine) return;
+            try {
+                const pending = await dbGetByIndex('sync-queue', 'status', 'pending');
+                if (pending.length === 0) return;
+
+                const syncUrl = await dbGet('settings', 'sync_webhook_url');
+                if (!syncUrl?.value) return;
+
+                for (const item of pending) {
+                    try {
+                        const resp = await fetch(syncUrl.value, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(item.payload)
+                        });
+                        if (resp.ok) {
+                            await dbDelete('sync-queue', item.id);
+                        }
+                    } catch (e) {
+                        console.warn('Sync failed for item', item.id, e);
+                    }
+                }
+                updateSyncBadge();
+            } catch (e) {
+                console.error('Process sync error:', e);
+            }
+        }
+
+        async function updateSyncBadge() {
+            const badge = document.getElementById('syncBadge');
+            if (!badge || !_db) return;
+            try {
+                const pending = await dbGetByIndex('sync-queue', 'status', 'pending');
+                if (pending.length > 0) {
+                    badge.textContent = pending.length + ' ausstehend';
+                    badge.classList.add('visible');
+                } else {
+                    badge.classList.remove('visible');
+                }
+            } catch (e) { badge.classList.remove('visible'); }
+        }
+
+        function requestBackgroundSync() {
+            if ('serviceWorker' in navigator && 'SyncManager' in window) {
+                navigator.serviceWorker.ready.then(reg => {
+                    reg.sync.register('sync-data').catch(() => {});
+                });
+            }
+        }
+
         // ==================== KONSTANTEN ====================
 
         // Gebäudearten nach ImmoWertV 2021
@@ -1051,12 +1434,22 @@
             stellplaetze: ['keine', 'im öffentlichen Verkehrsraum', 'auf Grundstück', 'Garage', 'Carport', 'Tiefgarage']
         };
 
-        // Airtable Konfiguration (ImmoKonzept Base)
+        // Airtable Konfiguration (ImmoKonzept Base) - wird async aus IDB aktualisiert
         const AIRTABLE_CONFIG = {
-            apiKey: localStorage.getItem('airtable_api_key') || '',  // Set via Settings or .env AIRTABLE_API_TOKEN
-            baseId: localStorage.getItem('airtable_base_id') || 'appWaBDKXVuXwBGX5',
-            tableName: localStorage.getItem('airtable_table_name') || 'Objekte'
+            apiKey: '',
+            baseId: 'appWaBDKXVuXwBGX5',
+            tableName: 'Objekte'
         };
+
+        async function loadAirtableConfigFromIDB() {
+            if (!_db) return;
+            const key = await dbGet('settings', 'airtable_api_key');
+            const base = await dbGet('settings', 'airtable_base_id');
+            const table = await dbGet('settings', 'airtable_table_name');
+            if (key?.value) AIRTABLE_CONFIG.apiKey = key.value;
+            if (base?.value) AIRTABLE_CONFIG.baseId = base.value;
+            if (table?.value) AIRTABLE_CONFIG.tableName = table.value;
+        }
 
         // Kostenkatalog (aus BKI) mit DIN 276 Zuordnung
         const KOSTENKATALOG = {
@@ -1163,8 +1556,22 @@
             dach: { skl: 1 },
             fassaden: { nord: {}, ost: {}, sued: {}, west: {} },
             kostenpositionen: [],
-            objektdaten: {}
+            objektdaten: {},
+            maengel: []
         };
+
+        function getDefaultProjectData() {
+            return {
+                deckblatt: { gebaeudeArt: '' },
+                geschosse: [],
+                bauplaene: [],
+                dach: { skl: 1 },
+                fassaden: { nord: {}, ost: {}, sued: {}, west: {} },
+                kostenpositionen: [],
+                objektdaten: {},
+                maengel: []
+            };
+        }
 
         let currentPage = 'deckblatt';
         let currentFloorId = null;
@@ -1174,13 +1581,53 @@
         let drawMode = 'pan';
         let isDrawing = false;
         let currentPath = [];
+        let _canvasAbortController = null;
+        let _lastExportData = null;
 
         // ==================== INITIALISIERUNG ====================
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadProject();
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await openDB();
+                await migrateFromLocalStorage();
+
+                // Recover emergency save if exists
+                const emergencySave = localStorage.getItem('immokonzept_emergency_save');
+                if (emergencySave && _db) {
+                    try {
+                        const emergency = JSON.parse(emergencySave);
+                        const existing = await dbGet('projects', emergency.projectId);
+                        if (existing && (!existing.modified || emergency.timestamp > existing.modified)) {
+                            existing.data = emergency.data;
+                            existing.modified = emergency.timestamp;
+                            await dbPut('projects', existing);
+                            console.log('Emergency save recovered for', emergency.projectId);
+                        }
+                        localStorage.removeItem('immokonzept_emergency_save');
+                    } catch(e) { console.warn('Emergency save recovery failed:', e); }
+                }
+
+                await loadAirtableConfigFromIDB();
+
+                // Check if there are projects - show project list or last project
+                const projects = await dbGetAll('projects');
+                if (projects.length === 1) {
+                    await openProject(projects[0].id);
+                } else if (projects.length > 1) {
+                    currentPage = 'projektliste';
+                } else {
+                    // No projects, try legacy load
+                    await loadProjectLegacy();
+                }
+            } catch (e) {
+                console.warn('IDB init failed, using localStorage:', e);
+                await loadProjectLegacy();
+            }
+
             renderNavigation();
             renderCurrentPage();
+            updateBottomActions();
+            updateSyncBadge();
 
             // Set today's date if empty
             setTimeout(() => {
@@ -1191,59 +1638,91 @@
             }, 100);
         });
 
-        // Offline detection
-        window.addEventListener('online', () => document.body.classList.remove('offline'));
+        // Offline detection + sync
+        window.addEventListener('online', () => {
+            document.body.classList.remove('offline');
+            processSync();
+        });
         window.addEventListener('offline', () => document.body.classList.add('offline'));
         if (!navigator.onLine) document.body.classList.add('offline');
+
+        // Auto-save on visibility change / beforeunload
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && activeProjectId) {
+                clearTimeout(_saveTimer);
+                saveProject(true);
+            }
+        });
+        window.addEventListener('beforeunload', () => {
+            if (activeProjectId) {
+                clearTimeout(_saveTimer);
+                try {
+                    // Strip plan dataUrls to stay within localStorage quota
+                    const lightData = JSON.parse(JSON.stringify(projectData));
+                    if (lightData.bauplaene) {
+                        lightData.bauplaene.forEach(p => { p.dataUrl = ''; p.thumbnail = ''; });
+                    }
+                    localStorage.setItem('immokonzept_emergency_save', JSON.stringify({
+                        projectId: activeProjectId,
+                        data: lightData,
+                        timestamp: new Date().toISOString()
+                    }));
+                } catch(e) {
+                    console.warn('Emergency save failed (quota?):', e);
+                }
+            }
+        });
+
+        function updateBottomActions() {
+            const ba = document.getElementById('bottomActions');
+            if (ba) ba.style.display = activeProjectId ? 'flex' : 'none';
+        }
 
         // ==================== NAVIGATION ====================
 
         function renderNavigation() {
             const nav = document.getElementById('navTabs');
             let html = '';
+            const dis = activeProjectId ? '' : ' nav-disabled';
 
-            // Deckblatt
-            html += `<li><a href="#" class="${currentPage === 'deckblatt' ? 'active' : ''}" onclick="navigateTo('deckblatt')">Deckblatt</a></li>`;
+            // Projekte Tab (immer sichtbar)
+            html += `<li><a href="#" class="${currentPage === 'projektliste' ? 'active' : ''}" onclick="navigateTo('projektliste')">Projekte</a></li>`;
 
-            // Objektdaten (NEU)
-            html += `<li><a href="#" class="${currentPage === 'objektdaten' ? 'active' : ''}" onclick="navigateTo('objektdaten')">Objekt</a></li>`;
-
-            // Pläne
-            html += `<li><a href="#" class="${currentPage === 'plaene' ? 'active' : ''}" onclick="navigateTo('plaene')">Pläne</a></li>`;
-
-            // Fassade
-            html += `<li><a href="#" class="${currentPage === 'fassade' ? 'active' : ''}" onclick="navigateTo('fassade')">Fassade</a></li>`;
+            // Alle Tabs immer sichtbar (disabled wenn kein Projekt offen)
+            html += `<li><a href="#" class="${currentPage === 'deckblatt' ? 'active' : ''}${dis}" ${activeProjectId ? `onclick="navigateTo('deckblatt')"` : ''}>Deckblatt</a></li>`;
+            html += `<li><a href="#" class="${currentPage === 'objektdaten' ? 'active' : ''}${dis}" ${activeProjectId ? `onclick="navigateTo('objektdaten')"` : ''}>Objekt</a></li>`;
+            html += `<li><a href="#" class="${currentPage === 'fassade' ? 'active' : ''}${dis}" ${activeProjectId ? `onclick="navigateTo('fassade')"` : ''}>Fassade</a></li>`;
 
             // Dynamische Geschosse
-            projectData.geschosse.forEach(g => {
-                html += `<li><a href="#" class="${currentPage === 'geschoss_' + g.id ? 'active' : ''}" onclick="navigateTo('geschoss_${g.id}')">${g.kuerzel}</a></li>`;
-            });
+            if (activeProjectId) {
+                projectData.geschosse.forEach(g => {
+                    html += `<li><a href="#" class="${currentPage === 'geschoss_' + g.id ? 'active' : ''}" onclick="navigateTo('geschoss_${g.id}')">${escapeHtml(g.kuerzel)}</a></li>`;
+                });
+                html += `<li><button class="nav-btn add-floor-btn" onclick="openFloorModal()">+ Geschoss</button></li>`;
+            }
 
-            // + Geschoss Button
-            html += `<li><button class="nav-btn add-floor-btn" onclick="openFloorModal()">+ Geschoss</button></li>`;
+            html += `<li><a href="#" class="${currentPage === 'dach' ? 'active' : ''}${dis}" ${activeProjectId ? `onclick="navigateTo('dach')"` : ''}>Dach</a></li>`;
+            html += `<li><a href="#" class="${currentPage === 'kosten' ? 'active' : ''}${dis}" ${activeProjectId ? `onclick="navigateTo('kosten')"` : ''}>Kosten</a></li>`;
 
-            // Dach
-            html += `<li><a href="#" class="${currentPage === 'dach' ? 'active' : ''}" onclick="navigateTo('dach')">Dach</a></li>`;
-
-            // Kosten
-            html += `<li><a href="#" class="${currentPage === 'kosten' ? 'active' : ''}" onclick="navigateTo('kosten')">Kosten</a></li>`;
+            const maengelCount = activeProjectId ? getMaengelCount() : 0;
+            html += `<li><a href="#" class="${currentPage === 'maengel' ? 'active' : ''}${dis}" ${activeProjectId ? `onclick="navigateTo('maengel')"` : ''}>Mängel${maengelCount > 0 ? `<span class="nav-badge">${maengelCount}</span>` : ''}</a></li>`;
 
             nav.innerHTML = html;
         }
 
         function navigateTo(page) {
+            if (!activeProjectId && page !== 'projektliste') return;
             currentPage = page;
             renderNavigation();
             renderCurrentPage();
-            // Scroll nach oben
             window.scrollTo(0, 0);
         }
 
-        // Navigation: Alle Seiten in Reihenfolge
+        // Navigation: Alle Seiten in Reihenfolge (projektliste ist Meta-Seite, nicht in Pfeil-Nav)
         function getPageOrder() {
-            const pages = ['deckblatt', 'objektdaten', 'plaene', 'fassade'];
+            const pages = ['deckblatt', 'objektdaten', 'fassade'];
             projectData.geschosse.forEach(g => pages.push('geschoss_' + g.id));
-            pages.push('dach', 'kosten');
+            pages.push('dach', 'kosten', 'maengel');
             return pages;
         }
 
@@ -1270,13 +1749,14 @@
                 if (!page) return '';
                 if (page === 'deckblatt') return 'Deckblatt';
                 if (page === 'objektdaten') return 'Objektdaten';
-                if (page === 'plaene') return 'Pläne';
+
                 if (page === 'fassade') return 'Fassade';
                 if (page === 'dach') return 'Dach';
                 if (page === 'kosten') return 'Kosten';
+                if (page === 'maengel') return 'Mängel';
                 if (page.startsWith('geschoss_')) {
                     const floor = projectData.geschosse.find(g => g.id === page.replace('geschoss_', ''));
-                    return floor ? floor.kuerzel : page;
+                    return floor ? escapeHtml(floor.kuerzel) : escapeHtml(page);
                 }
                 return page;
             };
@@ -1298,12 +1778,21 @@
             `;
         }
 
+        function reRenderKeepScroll() {
+            const scrollY = window.scrollY;
+            renderCurrentPage();
+            requestAnimationFrame(() => window.scrollTo(0, scrollY));
+        }
+
         function renderCurrentPage() {
             const main = document.getElementById('mainContent');
 
             let content = '';
 
-            if (currentPage === 'deckblatt') {
+            if (currentPage === 'projektliste') {
+                renderProjektliste();
+                return;
+            } else if (currentPage === 'deckblatt') {
                 content = renderDeckblatt();
                 main.innerHTML = content + renderNavigationArrows();
                 loadDeckblattData();
@@ -1311,9 +1800,6 @@
                 content = renderObjektdaten();
                 main.innerHTML = content + renderNavigationArrows();
                 loadObjektdaten();
-            } else if (currentPage === 'plaene') {
-                content = renderPlaene();
-                main.innerHTML = content + renderNavigationArrows();
             } else if (currentPage.startsWith('geschoss_')) {
                 const floorId = currentPage.replace('geschoss_', '');
                 content = renderGeschoss(floorId);
@@ -1329,14 +1815,17 @@
             } else if (currentPage === 'kosten') {
                 content = renderKosten();
                 main.innerHTML = content + renderNavigationArrows();
+            } else if (currentPage === 'maengel') {
+                content = renderMaengel();
+                main.innerHTML = content + renderNavigationArrows();
             }
         }
 
         // ==================== DECKBLATT ====================
 
         function renderDeckblatt() {
-            const gebaeudeOptions = Object.entries(GEBAEUDEARTEN).map(([key, name]) =>
-                `<option value="${key}">${name}</option>`
+            const gebaeudeChips = Object.entries(GEBAEUDEARTEN).map(([key, name]) =>
+                `<span class="chip" data-value="${escapeHtml(key)}" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDeckblatt()">${escapeHtml(name)}</span>`
             ).join('');
 
             const hasAirtableConfig = AIRTABLE_CONFIG.apiKey && AIRTABLE_CONFIG.baseId;
@@ -1406,10 +1895,7 @@
                     <h2>Gebäude</h2>
                     <div class="form-group">
                         <label>Gebäudeart (ImmoWertV)</label>
-                        <select id="gebaeudeArt" onchange="saveDeckblatt()">
-                            <option value="">Auswählen...</option>
-                            ${gebaeudeOptions}
-                        </select>
+                        <div class="option-chips" id="gebaeudeArt">${gebaeudeChips}</div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -1436,6 +1922,17 @@
                         <input type="number" id="grundstueck" step="0.01" onchange="saveDeckblatt()">
                     </div>
                 </div>
+
+                <div class="card" style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); border: 2px solid #42a5f5;">
+                    <h3 style="color: #1565c0; margin-bottom: 12px;">Objektordner (Google Drive)</h3>
+                    <div class="form-group">
+                        <label>Link zum Objektordner</label>
+                        <input type="url" id="objektordnerLink" value=""
+                               placeholder="https://drive.google.com/drive/folders/..."
+                               onchange="saveObjektordnerLink()" style="font-size: 0.9rem;">
+                    </div>
+                    <div id="objektordnerBtn"></div>
+                </div>
             `;
         }
 
@@ -1444,14 +1941,27 @@
             if (!d) return;
 
             const fields = ['adresse', 'projektnummer', 'datum', 'uhrzeitVon', 'uhrzeitBis', 'beteiligte',
-                           'gebaeudeArt', 'baujahr', 'vollgeschosse', 'wohnflaeche', 'nutzflaeche', 'grundstueck'];
+                           'baujahr', 'vollgeschosse', 'wohnflaeche', 'nutzflaeche', 'grundstueck'];
 
             fields.forEach(field => {
                 const el = document.getElementById(field);
                 if (el && d[field]) el.value = d[field];
             });
 
+            // Gebaeudeart Chips laden
+            if (d.gebaeudeArt) setChipValue('gebaeudeArt', d.gebaeudeArt);
+
             document.getElementById('projectName').textContent = d.adresse || 'Kein Projekt geladen';
+
+            // Objektordner-Link laden
+            const ordnerLink = document.getElementById('objektordnerLink');
+            const ordnerBtn = document.getElementById('objektordnerBtn');
+            if (ordnerLink && d.objektordnerLink) {
+                ordnerLink.value = d.objektordnerLink;
+                if (ordnerBtn && /^https?:\/\//i.test(d.objektordnerLink)) {
+                    ordnerBtn.innerHTML = `<a href="${escapeHtml(d.objektordnerLink)}" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 8px;">Ordner öffnen</a>`;
+                }
+            }
 
             // Airtable-Objekte laden wenn konfiguriert
             if (AIRTABLE_CONFIG.apiKey && AIRTABLE_CONFIG.baseId && airtableRecords.length === 0) {
@@ -1468,7 +1978,7 @@
                 uhrzeitVon: document.getElementById('uhrzeitVon')?.value || '',
                 uhrzeitBis: document.getElementById('uhrzeitBis')?.value || '',
                 beteiligte: document.getElementById('beteiligte')?.value || '',
-                gebaeudeArt: document.getElementById('gebaeudeArt')?.value || '',
+                gebaeudeArt: getChipValue('gebaeudeArt'),
                 baujahr: document.getElementById('baujahr')?.value || '',
                 vollgeschosse: document.getElementById('vollgeschosse')?.value || '',
                 wohnflaeche: document.getElementById('wohnflaeche')?.value || '',
@@ -1477,44 +1987,68 @@
             };
 
             document.getElementById('projectName').textContent = projectData.deckblatt.adresse || 'Kein Projekt geladen';
-            saveProject(true);
+            scheduleSave();
         }
 
         function saveObjektordnerLink() {
+            const link = document.getElementById('objektordnerLink')?.value || '';
             projectData.deckblatt = {
                 ...projectData.deckblatt,
-                objektordnerLink: document.getElementById('objektordnerLink')?.value || ''
+                objektordnerLink: link
             };
-            saveProject(true);
+            const ordnerBtn = document.getElementById('objektordnerBtn');
+            if (ordnerBtn) {
+                ordnerBtn.innerHTML = /^https?:\/\//i.test(link)
+                    ? `<a href="${escapeHtml(link)}" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 8px;">Ordner öffnen</a>`
+                    : '';
+            }
+            scheduleSave();
             showToast('Objektordner-Link gespeichert');
         }
 
         // ==================== OBJEKTDATEN ====================
 
+        // ---- Chip-Button Helpers ----
+        function getChipValue(id) {
+            const active = document.querySelector(`#${id} .chip.active`);
+            return active ? active.dataset.value : '';
+        }
+
+        function setChipValue(id, value) {
+            if (!value) return;
+            document.querySelectorAll(`#${id} .chip`).forEach(c => {
+                c.classList.toggle('active', c.dataset.value === value);
+            });
+        }
+
+        function getMultiChipValues(id) {
+            return Array.from(document.querySelectorAll(`#${id} .chip.active`)).map(c => c.dataset.value);
+        }
+
+        function setMultiChipValues(id, values) {
+            if (!values || !Array.isArray(values)) return;
+            document.querySelectorAll(`#${id} .chip`).forEach(c => {
+                c.classList.toggle('active', values.includes(c.dataset.value));
+            });
+        }
+
         function renderObjektdaten() {
-            const makeSelect = (id, options, label) => {
-                const opts = options.map(o => `<option value="${o}">${o}</option>`).join('');
+            const makeChips = (id, options, label) => {
+                const chips = options.map(o => `<span class="chip" data-value="${escapeHtml(o)}" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveObjektdaten()">${escapeHtml(o)}</span>`).join('');
                 return `
                     <div class="form-group">
                         <label>${label}</label>
-                        <select id="${id}" onchange="saveObjektdaten()">
-                            <option value="">-- wählen --</option>
-                            ${opts}
-                        </select>
+                        <div class="option-chips" id="${id}">${chips}</div>
                     </div>
                 `;
             };
 
-            const makeCheckboxGroup = (id, options, label) => {
-                const checks = options.map(o => `
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="${id}" value="${o}" onchange="saveObjektdaten()"> ${o}
-                    </label>
-                `).join('');
+            const makeMultiChips = (id, options, label) => {
+                const chips = options.map(o => `<span class="chip" data-value="${escapeHtml(o)}" onclick="this.classList.toggle('active');saveObjektdaten()">${escapeHtml(o)}</span>`).join('');
                 return `
                     <div class="form-group">
                         <label>${label}</label>
-                        <div class="checkbox-group">${checks}</div>
+                        <div class="option-chips" id="${id}">${chips}</div>
                     </div>
                 `;
             };
@@ -1523,36 +2057,36 @@
                 <div class="card">
                     <h2>Lage</h2>
                     <div class="form-row">
-                        ${makeSelect('obj_lage', OBJEKTDATEN_OPTIONEN.lage, 'Lagequalität')}
-                        ${makeSelect('obj_umgebung', OBJEKTDATEN_OPTIONEN.umgebung, 'Umgebung')}
+                        ${makeChips('obj_lage', OBJEKTDATEN_OPTIONEN.lage, 'Lagequalität')}
+                        ${makeChips('obj_umgebung', OBJEKTDATEN_OPTIONEN.umgebung, 'Umgebung')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_geschossigkeit', OBJEKTDATEN_OPTIONEN.geschossigkeit, 'Bebauung Umgebung')}
+                        ${makeChips('obj_geschossigkeit', OBJEKTDATEN_OPTIONEN.geschossigkeit, 'Bebauung Umgebung')}
                     </div>
                 </div>
 
                 <div class="card">
                     <h2>Grundstück</h2>
                     <div class="form-row">
-                        ${makeSelect('obj_form', OBJEKTDATEN_OPTIONEN.grundstueck_form, 'Grundstücksform')}
-                        ${makeSelect('obj_topografie', OBJEKTDATEN_OPTIONEN.grundstueck_topografie, 'Topografie')}
+                        ${makeChips('obj_form', OBJEKTDATEN_OPTIONEN.grundstueck_form, 'Grundstücksform')}
+                        ${makeChips('obj_topografie', OBJEKTDATEN_OPTIONEN.grundstueck_topografie, 'Topografie')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_boden', OBJEKTDATEN_OPTIONEN.boden, 'Bodenbeschaffenheit')}
-                        ${makeSelect('obj_altlasten', OBJEKTDATEN_OPTIONEN.altlasten, 'Altlasten')}
+                        ${makeChips('obj_boden', OBJEKTDATEN_OPTIONEN.boden, 'Bodenbeschaffenheit')}
+                        ${makeChips('obj_altlasten', OBJEKTDATEN_OPTIONEN.altlasten, 'Altlasten')}
                     </div>
-                    ${makeCheckboxGroup('obj_immissionen', OBJEKTDATEN_OPTIONEN.immissionen, 'Immissionen')}
+                    ${makeMultiChips('obj_immissionen', OBJEKTDATEN_OPTIONEN.immissionen, 'Immissionen (Mehrfachauswahl)')}
                 </div>
 
                 <div class="card">
                     <h2>Außenanlagen</h2>
-                    ${makeCheckboxGroup('obj_einfriedung', ['Zaunanlage', 'Hecke', 'Mauer', 'Grenzbebauung', 'keine'], 'Einfriedung (Mehrfachauswahl)')}
+                    ${makeMultiChips('obj_einfriedung', ['Zaunanlage', 'Hecke', 'Mauer', 'Grenzbebauung', 'keine'], 'Einfriedung (Mehrfachauswahl)')}
                     <div class="form-row" style="margin-top: 16px;">
-                        ${makeSelect('obj_befestigung', OBJEKTDATEN_OPTIONEN.befestigung, 'Bodenbefestigung')}
+                        ${makeChips('obj_befestigung', OBJEKTDATEN_OPTIONEN.befestigung, 'Bodenbefestigung')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_bepflanzung', OBJEKTDATEN_OPTIONEN.bepflanzung, 'Bepflanzung')}
-                        ${makeSelect('obj_stellplaetze', OBJEKTDATEN_OPTIONEN.stellplaetze, 'Stellplätze')}
+                        ${makeChips('obj_bepflanzung', OBJEKTDATEN_OPTIONEN.bepflanzung, 'Bepflanzung')}
+                        ${makeChips('obj_stellplaetze', OBJEKTDATEN_OPTIONEN.stellplaetze, 'Stellplätze')}
                     </div>
                     <div class="form-group">
                         <label>Bemerkungen Außenanlagen</label>
@@ -1563,31 +2097,31 @@
                 <div class="card">
                     <h2>Baukonstruktion (Gebäude gesamt)</h2>
                     <div class="form-row">
-                        ${makeSelect('obj_fundamente', BAUTEIL_OPTIONEN.fundamente, 'Fundamente')}
-                        ${makeSelect('obj_keller', BAUTEIL_OPTIONEN.keller, 'Keller')}
+                        ${makeChips('obj_fundamente', BAUTEIL_OPTIONEN.fundamente, 'Fundamente')}
+                        ${makeChips('obj_keller', BAUTEIL_OPTIONEN.keller, 'Keller')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_aussenwand', BAUTEIL_OPTIONEN.aussenwand, 'Außenwände')}
-                        ${makeSelect('obj_innenwand', BAUTEIL_OPTIONEN.innenwand, 'Innenwände')}
+                        ${makeChips('obj_aussenwand', BAUTEIL_OPTIONEN.aussenwand, 'Außenwände')}
+                        ${makeChips('obj_innenwand', BAUTEIL_OPTIONEN.innenwand, 'Innenwände')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_decken', BAUTEIL_OPTIONEN.decken, 'Decken')}
-                        ${makeSelect('obj_treppen', BAUTEIL_OPTIONEN.treppen, 'Treppen')}
+                        ${makeChips('obj_decken', BAUTEIL_OPTIONEN.decken, 'Decken')}
+                        ${makeChips('obj_treppen', BAUTEIL_OPTIONEN.treppen, 'Treppen')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_dachkonstruktion', BAUTEIL_OPTIONEN.dachkonstruktion, 'Dachkonstruktion')}
-                        ${makeSelect('obj_dachdeckung', BAUTEIL_OPTIONEN.dachdeckung, 'Dachdeckung')}
+                        ${makeChips('obj_dachkonstruktion', BAUTEIL_OPTIONEN.dachkonstruktion, 'Dachkonstruktion')}
+                        ${makeChips('obj_dachdeckung', BAUTEIL_OPTIONEN.dachdeckung, 'Dachdeckung')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_fenster', BAUTEIL_OPTIONEN.fenster, 'Fenster')}
-                        ${makeSelect('obj_verglasung', BAUTEIL_OPTIONEN.verglasung, 'Verglasung')}
+                        ${makeChips('obj_fenster', BAUTEIL_OPTIONEN.fenster, 'Fenster')}
+                        ${makeChips('obj_verglasung', BAUTEIL_OPTIONEN.verglasung, 'Verglasung')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_heizung', BAUTEIL_OPTIONEN.heizung, 'Heizung')}
-                        ${makeSelect('obj_elektro', BAUTEIL_OPTIONEN.elektro, 'Elektroinstallation')}
+                        ${makeChips('obj_heizung', BAUTEIL_OPTIONEN.heizung, 'Heizung')}
+                        ${makeChips('obj_elektro', BAUTEIL_OPTIONEN.elektro, 'Elektroinstallation')}
                     </div>
                     <div class="form-row">
-                        ${makeSelect('obj_zustand', BAUTEIL_OPTIONEN.zustand, 'Gesamtzustand Gebäude')}
+                        ${makeChips('obj_zustand', BAUTEIL_OPTIONEN.zustand, 'Gesamtzustand Gebäude')}
                     </div>
                 </div>
 
@@ -1729,7 +2263,7 @@
             }
             projectData.objektdaten[id + '_punkte'] = berechnete;
 
-            saveProject(true);
+            scheduleSave();
             updateModernisierungsSumme();
         }
 
@@ -1747,7 +2281,7 @@
             punkteInput.style.borderColor = '#28a745'; // Grün = manuell angepasst
 
             projectData.objektdaten[id + '_punkte'] = validPunkte;
-            saveProject(true);
+            scheduleSave();
             updateModernisierungsSumme();
         }
 
@@ -1802,40 +2336,29 @@
         function saveModBemerkung() {
             if (!projectData.objektdaten) projectData.objektdaten = {};
             projectData.objektdaten.mod_grundriss_bemerkung = document.getElementById('mod_grundriss_bemerkung')?.value || '';
-            saveProject(true);
+            scheduleSave();
         }
 
         function loadObjektdaten() {
             const obj = projectData.objektdaten || {};
 
-            // Selects laden
-            const selects = ['lage', 'umgebung', 'geschossigkeit', 'form', 'topografie', 'boden', 'altlasten',
-                            'einfriedung', 'befestigung', 'bepflanzung', 'stellplaetze',
+            // Chips laden
+            const chipFields = ['lage', 'umgebung', 'geschossigkeit', 'form', 'topografie', 'boden', 'altlasten',
+                            'befestigung', 'bepflanzung', 'stellplaetze',
                             'fundamente', 'keller', 'aussenwand', 'innenwand', 'decken', 'treppen',
                             'dachkonstruktion', 'dachdeckung', 'fenster', 'verglasung', 'heizung', 'elektro', 'zustand'];
 
-            selects.forEach(key => {
-                const el = document.getElementById('obj_' + key);
-                if (el && obj[key]) el.value = obj[key];
+            chipFields.forEach(key => {
+                if (obj[key]) setChipValue('obj_' + key, obj[key]);
             });
 
-            // Checkboxen laden
-            if (obj.immissionen && Array.isArray(obj.immissionen)) {
-                document.querySelectorAll('input[name="obj_immissionen"]').forEach(cb => {
-                    cb.checked = obj.immissionen.includes(cb.value);
-                });
-            }
+            // Multi-Chips laden
+            if (obj.immissionen) setMultiChipValues('obj_immissionen', obj.immissionen);
+            if (obj.einfriedung) setMultiChipValues('obj_einfriedung', obj.einfriedung);
 
             // Textarea
             const bemerkung = document.getElementById('obj_aussen_bemerkung');
             if (bemerkung && obj.aussen_bemerkung) bemerkung.value = obj.aussen_bemerkung;
-
-            // Einfriedung Checkboxen laden
-            if (obj.einfriedung && Array.isArray(obj.einfriedung)) {
-                document.querySelectorAll('input[name="obj_einfriedung"]').forEach(cb => {
-                    cb.checked = obj.einfriedung.includes(cb.value);
-                });
-            }
 
             // Grundriss-Bemerkung laden
             const grundrissBemerkung = document.getElementById('mod_grundriss_bemerkung');
@@ -1849,18 +2372,11 @@
 
         function saveObjektdaten() {
             const getVal = (id) => document.getElementById(id)?.value || '';
+            const gc = (id) => getChipValue(id);
 
-            // Checkboxen sammeln - Immissionen
-            const immissionen = [];
-            document.querySelectorAll('input[name="obj_immissionen"]:checked').forEach(cb => {
-                immissionen.push(cb.value);
-            });
-
-            // Checkboxen sammeln - Einfriedung (Mehrfachauswahl)
-            const einfriedung = [];
-            document.querySelectorAll('input[name="obj_einfriedung"]:checked').forEach(cb => {
-                einfriedung.push(cb.value);
-            });
+            // Multi-Chips sammeln
+            const immissionen = getMultiChipValues('obj_immissionen');
+            const einfriedung = getMultiChipValues('obj_einfriedung');
 
             // Modernisierungspunkte beibehalten (neue Struktur mit _jahr, _erfolgt, _punkte)
             const bestehendeModPunkte = {};
@@ -1874,106 +2390,45 @@
             });
 
             projectData.objektdaten = {
-                ...bestehendeModPunkte,  // Modernisierungspunkte beibehalten
-                lage: getVal('obj_lage'),
-                umgebung: getVal('obj_umgebung'),
-                geschossigkeit: getVal('obj_geschossigkeit'),
-                form: getVal('obj_form'),
-                topografie: getVal('obj_topografie'),
-                boden: getVal('obj_boden'),
-                altlasten: getVal('obj_altlasten'),
+                ...bestehendeModPunkte,
+                lage: gc('obj_lage'),
+                umgebung: gc('obj_umgebung'),
+                geschossigkeit: gc('obj_geschossigkeit'),
+                form: gc('obj_form'),
+                topografie: gc('obj_topografie'),
+                boden: gc('obj_boden'),
+                altlasten: gc('obj_altlasten'),
                 immissionen: immissionen,
-                einfriedung: einfriedung,  // Jetzt Array statt String
-                befestigung: getVal('obj_befestigung'),
-                bepflanzung: getVal('obj_bepflanzung'),
-                stellplaetze: getVal('obj_stellplaetze'),
+                einfriedung: einfriedung,
+                befestigung: gc('obj_befestigung'),
+                bepflanzung: gc('obj_bepflanzung'),
+                stellplaetze: gc('obj_stellplaetze'),
                 aussen_bemerkung: getVal('obj_aussen_bemerkung'),
-                fundamente: getVal('obj_fundamente'),
-                keller: getVal('obj_keller'),
-                aussenwand: getVal('obj_aussenwand'),
-                innenwand: getVal('obj_innenwand'),
-                decken: getVal('obj_decken'),
-                treppen: getVal('obj_treppen'),
-                dachkonstruktion: getVal('obj_dachkonstruktion'),
-                dachdeckung: getVal('obj_dachdeckung'),
-                fenster: getVal('obj_fenster'),
-                verglasung: getVal('obj_verglasung'),
-                heizung: getVal('obj_heizung'),
-                elektro: getVal('obj_elektro'),
-                zustand: getVal('obj_zustand')
+                fundamente: gc('obj_fundamente'),
+                keller: gc('obj_keller'),
+                aussenwand: gc('obj_aussenwand'),
+                innenwand: gc('obj_innenwand'),
+                decken: gc('obj_decken'),
+                treppen: gc('obj_treppen'),
+                dachkonstruktion: gc('obj_dachkonstruktion'),
+                dachdeckung: gc('obj_dachdeckung'),
+                fenster: gc('obj_fenster'),
+                verglasung: gc('obj_verglasung'),
+                heizung: gc('obj_heizung'),
+                elektro: gc('obj_elektro'),
+                zustand: gc('obj_zustand')
             };
 
-            saveProject(true);
+            scheduleSave();
         }
 
-        // ==================== PLÄNE ====================
 
-        function renderPlaene() {
-            let plansHtml = '';
-
-            if (projectData.bauplaene.length === 0) {
-                plansHtml = `
-                    <div class="empty-state">
-                        <div class="icon">📄</div>
-                        <p>Noch keine Pläne hochgeladen</p>
-                    </div>
-                `;
-            } else {
-                plansHtml = projectData.bauplaene.map(plan => {
-                    const geschossNames = plan.geschossIds
-                        .map(id => projectData.geschosse.find(g => g.id === id)?.kuerzel)
-                        .filter(Boolean)
-                        .join(', ') || 'Nicht zugeordnet';
-
-                    return `
-                        <div class="plan-card" onclick="openPlanViewer('${plan.id}')">
-                            <div class="plan-preview">
-                                ${plan.thumbnail ? `<img src="${plan.thumbnail}" alt="${plan.name}">` : '📄'}
-                            </div>
-                            <div class="plan-info">
-                                <h4>${plan.name}</h4>
-                                <span>${geschossNames}</span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            const objektordner = projectData.deckblatt?.objektordnerLink || '';
-
-            return `
-                <div class="card" style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); border: 2px solid #42a5f5;">
-                    <h3 style="color: #1565c0; margin-bottom: 12px;">📁 Objektordner (Google Drive / Cloud)</h3>
-                    <div class="form-group">
-                        <label>Link zum Objektordner (statt Datei-Upload)</label>
-                        <input type="url" id="objektordnerLink" value="${objektordner}"
-                               placeholder="https://drive.google.com/drive/folders/..."
-                               onchange="saveObjektordnerLink()" style="font-size: 0.9rem;">
-                    </div>
-                    ${objektordner ? `
-                        <a href="${objektordner}" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 8px;">
-                            🔗 Ordner öffnen
-                        </a>
-                    ` : ''}
-                </div>
-
-                <div class="card">
-                    <h2>Baupläne (lokal)</h2>
-                    <button class="btn btn-outline btn-block" onclick="openPlanModal()">
-                        + Plan hochladen (optional)
-                    </button>
-                    <div class="plan-grid">
-                        ${plansHtml}
-                    </div>
-                </div>
-            `;
-        }
 
         function openPlanModal() {
             // Geschoss-Dropdown füllen
             const select = document.getElementById('planGeschoss');
             select.innerHTML = projectData.geschosse.map(g =>
-                `<option value="${g.id}">${g.name} (${g.kuerzel})</option>`
+                `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)} (${escapeHtml(g.kuerzel)})</option>`
             ).join('');
 
             document.getElementById('planFile').value = '';
@@ -2029,9 +2484,9 @@
                 };
 
                 projectData.bauplaene.push(plan);
-                saveProject();
+                scheduleSave();
                 closePlanModal();
-                renderCurrentPage();
+                reRenderKeepScroll();
                 showToast('Plan gespeichert');
             };
 
@@ -2080,7 +2535,7 @@
             // Geschosse nach logischer Reihenfolge sortieren
             sortGeschosse();
 
-            saveProject();
+            scheduleSave();
             closeFloorModal();
             renderNavigation();
             navigateTo('geschoss_' + floor.id);
@@ -2120,7 +2575,7 @@
             };
 
             projectData.geschosse.push(floor);
-            saveProject();
+            scheduleSave();
             closeFloorModal();
             renderNavigation();
             navigateTo('geschoss_' + floor.id);
@@ -2131,17 +2586,19 @@
             const floor = projectData.geschosse.find(g => g.id === floorId);
             if (!floor) return;
 
-            const hasRooms = floor.raeume && floor.raeume.length > 0;
-            const confirmMsg = hasRooms
-                ? `"${floor.name}" enthält ${floor.raeume.length} Räume. Wirklich löschen?`
+            const roomCount = (floor.allgemein?.length || 0) +
+                (floor.units || []).reduce((sum, u) => sum + (u.raeume?.length || 0), 0) +
+                (floor.raeume?.length || 0);
+            const confirmMsg = roomCount > 0
+                ? `"${floor.name}" enthält ${roomCount} Räume. Wirklich löschen?`
                 : `"${floor.name}" wirklich löschen?`;
 
-            if (confirm(confirmMsg)) {
-                projectData.geschosse = projectData.geschosse.filter(g => g.id !== floorId);
-                saveProject();
-                navigateTo('deckblatt');
-                showToast('Geschoss gelöscht');
-            }
+            if (!confirm(confirmMsg)) return;
+
+            projectData.geschosse = projectData.geschosse.filter(g => g.id !== floorId);
+            scheduleSave();
+            navigateTo('deckblatt');
+            showToast('Geschoss gelöscht');
         }
 
         // Raum-Vorlagen für schnelles Hinzufügen
@@ -2196,7 +2653,7 @@
                 <div style="margin-bottom: 16px;">
                     ${zugeordnetePlaene.map(p => `
                         <button class="btn btn-outline btn-sm" onclick="openPlanViewer('${p.id}')" style="margin-right: 8px; margin-bottom: 8px;">
-                            📄 ${p.name}
+                            📄 ${escapeHtml(p.name)}
                         </button>
                     `).join('')}
                 </div>
@@ -2263,7 +2720,7 @@
             // Massenvoreinstellung HTML
             const massenHtml = `
                 <div class="card" style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9); border: 2px solid #66bb6a;">
-                    <h3 style="color: #2e7d32; margin-bottom: 12px;">⚡ Massenvoreinstellung für ${floor.kuerzel}</h3>
+                    <h3 style="color: #2e7d32; margin-bottom: 12px;">Massenvoreinstellung für ${escapeHtml(floor.kuerzel)}</h3>
                     <p style="font-size: 0.85rem; color: #388e3c; margin-bottom: 12px;">SKL-Wert auf alle Räume/Bauteile dieses Geschosses anwenden:</p>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button class="btn btn-sm" style="background: #48bb78; color: white;" onclick="massenSklSetzen('${floorId}', 1)">SKL 1 (sehr gut)</button>
@@ -2278,7 +2735,7 @@
             return `
                 <div class="card">
                     <h2>
-                        ${floor.name}
+                        ${escapeHtml(floor.name)}
                         <button class="delete-btn" onclick="deleteFloor('${floorId}')">Löschen</button>
                     </h2>
                     ${plaeneHtml}
@@ -2321,8 +2778,8 @@
                 (unit.raeume || []).forEach(setRoomSkl);
             });
 
-            saveProject(true);
-            renderCurrentPage();
+            scheduleSave();
+            reRenderKeepScroll();
             showToast(`SKL ${skl} auf ${count} Räume in ${floor.kuerzel} angewendet`);
         }
 
@@ -2367,7 +2824,7 @@
             return `
                 <div class="room-item" onclick="openRoomModal('${floorId}', '${bereich}', '${unitKey}', ${idx})">
                     <div class="room-info">
-                        <h3>${room.nummer || ''} ${room.name}</h3>
+                        <h3>${escapeHtml(room.nummer || '')} ${escapeHtml(room.name)}</h3>
                         <span>${bauteilCount} Bauteile erfasst</span>
                     </div>
                     <div class="room-actions">
@@ -2389,9 +2846,18 @@
             const floor = projectData.geschosse.find(g => g.id === floorId);
             if (!floor) return;
 
-            floor.einheiten[typ] = parseInt(value) || 0;
-            saveProject(true);
-            renderCurrentPage();
+            const newCount = parseInt(value) || 0;
+            const typKey = typ.toUpperCase();
+            floor.einheiten[typ] = newCount;
+
+            // Remove orphan units beyond the new count
+            floor.units = floor.units.filter(u => {
+                if (u.typ !== typKey) return true;
+                return u.nummer <= newCount;
+            });
+
+            scheduleSave();
+            reRenderKeepScroll();
         }
 
         function quickAddRoom(floorId, bereich, unitKey, name, kuerzel) {
@@ -2420,8 +2886,8 @@
                 }
             }
 
-            saveProject(true);
-            renderCurrentPage();
+            scheduleSave();
+            reRenderKeepScroll();
             showToast(`${name} hinzugefügt`);
         }
 
@@ -2441,8 +2907,8 @@
                 }
             }
 
-            saveProject(true);
-            renderCurrentPage();
+            scheduleSave();
+            reRenderKeepScroll();
         }
 
         // ==================== RÄUME ====================
@@ -2541,68 +3007,7 @@
             document.getElementById('roomModal').classList.remove('active');
         }
 
-        function addRoomElement(data = null) {
-            const container = document.getElementById('roomElements');
-            const idx = container.children.length;
-
-            const options = Object.entries(KOSTENKATALOG).map(([key, val]) =>
-                `<option value="${key}" ${data && data.typ === key ? 'selected' : ''}>${val.name}</option>`
-            ).join('');
-
-            const html = `
-                <div class="element-entry" data-idx="${idx}">
-                    <div class="element-header">
-                        <h4>Element ${idx + 1}</h4>
-                        <button class="btn btn-danger" onclick="removeElement(${idx})" style="padding: 6px 12px; font-size: 0.85rem;">Entfernen</button>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Raumelement</label>
-                            <select class="element-typ" onchange="updateElementUnit(this)">
-                                <option value="">Auswählen...</option>
-                                ${options}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Menge (<span class="element-unit">${data && data.typ && KOSTENKATALOG[data.typ] ? KOSTENKATALOG[data.typ].einheit : '-'}</span>)</label>
-                            <input type="number" class="element-menge" step="0.01" value="${data ? data.menge : ''}">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Beschreibung/Schäden</label>
-                        <textarea class="element-beschreibung" placeholder="Zustand, Mängel...">${data ? data.beschreibung || '' : ''}</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Schadensklasse</label>
-                        <div class="skl-buttons element-skl">
-                            ${[1,2,3,4,5].map(i => `<button type="button" class="skl-btn ${data && data.skl === i ? 'active' : ''}" data-skl="${i}">${i}</button>`).join('')}
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            container.insertAdjacentHTML('beforeend', html);
-
-            // Add SKL click handlers
-            const newEntry = container.lastElementChild;
-            newEntry.querySelectorAll('.skl-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    this.parentElement.querySelectorAll('.skl-btn').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                });
-            });
-        }
-
-        function removeElement(idx) {
-            const elements = document.querySelectorAll('#roomElements .element-entry');
-            if (elements[idx]) elements[idx].remove();
-        }
-
-        function updateElementUnit(select) {
-            const typ = select.value;
-            const unitSpan = select.closest('.element-entry').querySelector('.element-unit');
-            unitSpan.textContent = typ ? KOSTENKATALOG[typ].einheit : '-';
-        }
+        // addRoomElement/removeElement/updateElementUnit removed (dead code, replaced by RAUM_BAUTEILE system)
 
         function saveRoom() {
             const nummer = document.getElementById('roomNummer').value;
@@ -2650,8 +3055,8 @@
             }
 
             closeRoomModal();
-            saveProject();
-            renderCurrentPage();
+            scheduleSave();
+            reRenderKeepScroll();
             showToast('Raum gespeichert');
         }
 
@@ -2663,25 +3068,23 @@
                     <h2>Dachkonstruktion</h2>
                     <div class="form-group">
                         <label>Dachform</label>
-                        <select id="dachform" onchange="saveDach()">
-                            <option value="">Auswählen...</option>
-                            <option value="satteldach">Satteldach</option>
-                            <option value="walmdach">Walmdach</option>
-                            <option value="mansarddach">Mansarddach</option>
-                            <option value="flachdach">Flachdach</option>
-                            <option value="pultdach">Pultdach</option>
-                        </select>
+                        <div class="option-chips" id="dachform">
+                            <span class="chip" data-value="satteldach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Satteldach</span>
+                            <span class="chip" data-value="walmdach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Walmdach</span>
+                            <span class="chip" data-value="mansarddach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Mansarddach</span>
+                            <span class="chip" data-value="flachdach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Flachdach</span>
+                            <span class="chip" data-value="pultdach" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Pultdach</span>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Dacheindeckung</label>
-                        <select id="dacheindeckung" onchange="saveDach()">
-                            <option value="">Auswählen...</option>
-                            <option value="ziegel">Tondachziegel</option>
-                            <option value="betondachstein">Betondachsteine</option>
-                            <option value="schiefer">Schiefer</option>
-                            <option value="bitumen">Bitumenbahnen</option>
-                            <option value="metall">Metall</option>
-                        </select>
+                        <div class="option-chips" id="dacheindeckung">
+                            <span class="chip" data-value="ziegel" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Tondachziegel</span>
+                            <span class="chip" data-value="betondachstein" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Betondachsteine</span>
+                            <span class="chip" data-value="schiefer" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Schiefer</span>
+                            <span class="chip" data-value="bitumen" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Bitumenbahnen</span>
+                            <span class="chip" data-value="metall" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveDach()">Metall</span>
+                        </div>
                     </div>
                     <div class="form-row-3">
                         <div class="form-group">
@@ -2717,8 +3120,8 @@
 
         function loadDachData() {
             const d = projectData.dach || {};
-            if (document.getElementById('dachform')) document.getElementById('dachform').value = d.form || '';
-            if (document.getElementById('dacheindeckung')) document.getElementById('dacheindeckung').value = d.eindeckung || '';
+            if (d.form) setChipValue('dachform', d.form);
+            if (d.eindeckung) setChipValue('dacheindeckung', d.eindeckung);
             if (document.getElementById('dachflaeche')) document.getElementById('dachflaeche').value = d.flaeche || '';
             if (document.getElementById('dachBaujahr')) document.getElementById('dachBaujahr').value = d.baujahr || '';
             if (document.getElementById('dachSanierung')) document.getElementById('dachSanierung').value = d.sanierung || '';  // NEU
@@ -2739,15 +3142,15 @@
         function saveDach() {
             const sklBtn = document.querySelector('#dach-skl .skl-btn.active');
             projectData.dach = {
-                form: document.getElementById('dachform')?.value || '',
-                eindeckung: document.getElementById('dacheindeckung')?.value || '',
+                form: getChipValue('dachform'),
+                eindeckung: getChipValue('dacheindeckung'),
                 flaeche: document.getElementById('dachflaeche')?.value || '',
                 baujahr: document.getElementById('dachBaujahr')?.value || '',
                 sanierung: document.getElementById('dachSanierung')?.value || '',  // NEU
                 zustand: document.getElementById('dachZustand')?.value || '',
                 skl: sklBtn ? parseInt(sklBtn.dataset.skl) : 1
             };
-            saveProject(true);
+            scheduleSave();
         }
 
         // ==================== FASSADE ====================
@@ -2758,26 +3161,25 @@
                     <h2>Fassaden</h2>
                     <div class="form-group">
                         <label>Aktive Fassade</label>
-                        <select id="activeFassade" onchange="switchFassade(this.value)">
-                            <option value="nord">Nordfassade</option>
-                            <option value="ost">Ostfassade</option>
-                            <option value="sued">Südfassade</option>
-                            <option value="west">Westfassade</option>
-                        </select>
+                        <div class="option-chips" id="activeFassade">
+                            <span class="chip active" data-value="nord" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');switchFassade(this.dataset.value)">Nord</span>
+                            <span class="chip" data-value="ost" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');switchFassade(this.dataset.value)">Ost</span>
+                            <span class="chip" data-value="sued" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');switchFassade(this.dataset.value)">Süd</span>
+                            <span class="chip" data-value="west" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');switchFassade(this.dataset.value)">West</span>
+                        </div>
                     </div>
                 </div>
                 <div class="card">
                     <h2 id="fassadeTitle">Nordfassade</h2>
                     <div class="form-group">
                         <label>Fassadenart</label>
-                        <select id="fassadenart" onchange="saveFassade()">
-                            <option value="">Auswählen...</option>
-                            <option value="putz">Putzfassade</option>
-                            <option value="klinker">Klinkerfassade</option>
-                            <option value="wdvs">WDVS</option>
-                            <option value="holz">Holzfassade</option>
-                            <option value="vhf">Vorgehängte Fassade</option>
-                        </select>
+                        <div class="option-chips" id="fassadenart">
+                            <span class="chip" data-value="putz" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">Putzfassade</span>
+                            <span class="chip" data-value="klinker" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">Klinkerfassade</span>
+                            <span class="chip" data-value="wdvs" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">WDVS</span>
+                            <span class="chip" data-value="holz" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">Holzfassade</span>
+                            <span class="chip" data-value="vhf" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');saveFassade()">Vorgehängt</span>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Fassadenfläche (m²)</label>
@@ -2806,20 +3208,24 @@
         }
 
         function loadFassadeData() {
-            document.getElementById('activeFassade').value = currentFassade;
+            setChipValue('activeFassade', currentFassade);
             switchFassade(currentFassade);
         }
 
         function switchFassade(fassade) {
-            // Vorherige Fassade speichern
-            saveFassade();
+            // Vorherige Fassade speichern (nur wenn Wechsel von anderer Fassade)
+            if (currentFassade && fassade !== currentFassade) {
+                saveFassade();
+            }
 
             currentFassade = fassade;
             const titles = { nord: 'Nordfassade', ost: 'Ostfassade', sued: 'Südfassade', west: 'Westfassade' };
             document.getElementById('fassadeTitle').textContent = titles[fassade];
 
             const data = projectData.fassaden[fassade] || {};
-            document.getElementById('fassadenart').value = data.art || '';
+            // Fassadenart Chips laden - erst alle deaktivieren, dann Wert setzen
+            document.querySelectorAll('#fassadenart .chip').forEach(c => c.classList.remove('active'));
+            setChipValue('fassadenart', data.art || '');
             document.getElementById('fassadeFlaeche').value = data.flaeche || '';
             document.getElementById('fassadeDaemmstaerke').value = data.daemmstaerke || '';
             document.getElementById('fassadeZustand').value = data.zustand || '';
@@ -2841,13 +3247,13 @@
 
             const sklBtn = document.querySelector('#fassade-skl .skl-btn.active');
             projectData.fassaden[currentFassade] = {
-                art: document.getElementById('fassadenart')?.value || '',
+                art: getChipValue('fassadenart'),
                 flaeche: document.getElementById('fassadeFlaeche')?.value || '',
                 daemmstaerke: document.getElementById('fassadeDaemmstaerke')?.value || '',
                 zustand: document.getElementById('fassadeZustand')?.value || '',
                 skl: sklBtn ? parseInt(sklBtn.dataset.skl) : 1
             };
-            saveProject(true);
+            scheduleSave();
         }
 
         // ==================== KOSTEN ====================
@@ -3019,7 +3425,7 @@
                 </div>
 
                 <div class="card">
-                    <button class="btn btn-outline btn-block" onclick="exportToExcel()">
+                    <button class="btn btn-outline btn-block" onclick="exportExcel()">
                         📊 Excel-Export
                     </button>
                 </div>
@@ -3045,7 +3451,7 @@
             }
 
             projectData.kostenpositionen.push({ typ, menge, skl });
-            saveProject();
+            scheduleSave();
 
             // Formular zurücksetzen
             document.getElementById('kostenTyp').value = '';
@@ -3053,15 +3459,15 @@
             document.getElementById('kostenSkl').value = '3';
             document.getElementById('kostenEinheit').textContent = '-';
 
-            renderCurrentPage();
+            reRenderKeepScroll();
             showToast('Position hinzugefügt');
         }
 
         function deleteKostenposition(idx) {
             if (confirm('Position löschen?')) {
                 projectData.kostenpositionen.splice(idx, 1);
-                saveProject();
-                renderCurrentPage();
+                scheduleSave();
+                reRenderKeepScroll();
             }
         }
 
@@ -3121,7 +3527,7 @@
 
         function closePlanViewer() {
             document.getElementById('planViewer').classList.remove('active');
-            saveProject();
+            scheduleSave();
         }
 
         function initCanvas() {
@@ -3142,13 +3548,18 @@
             offsetX = (planCanvas.width - planImage.width * scale) / 2;
             offsetY = (planCanvas.height - planImage.height * scale) / 2;
 
+            // Abort previous listeners to prevent accumulation
+            if (_canvasAbortController) _canvasAbortController.abort();
+            _canvasAbortController = new AbortController();
+            const signal = _canvasAbortController.signal;
+
             // Setup annotation canvas events
-            annotationCanvas.addEventListener('mousedown', startDrawing);
-            annotationCanvas.addEventListener('mousemove', draw);
-            annotationCanvas.addEventListener('mouseup', stopDrawing);
-            annotationCanvas.addEventListener('touchstart', handleTouch);
-            annotationCanvas.addEventListener('touchmove', handleTouch);
-            annotationCanvas.addEventListener('touchend', stopDrawing);
+            annotationCanvas.addEventListener('mousedown', startDrawing, { signal });
+            annotationCanvas.addEventListener('mousemove', draw, { signal });
+            annotationCanvas.addEventListener('mouseup', stopDrawing, { signal });
+            annotationCanvas.addEventListener('touchstart', handleTouch, { signal, passive: false });
+            annotationCanvas.addEventListener('touchmove', handleTouch, { signal, passive: false });
+            annotationCanvas.addEventListener('touchend', stopDrawing, { signal });
         }
 
         function drawPlan() {
@@ -3256,7 +3667,7 @@
 
         function handleTouch(e) {
             e.preventDefault();
-            const touch = e.touches[0];
+            const touch = e.touches[0] || e.changedTouches[0];
             const mouseEvent = new MouseEvent(
                 e.type === 'touchstart' ? 'mousedown' :
                 e.type === 'touchmove' ? 'mousemove' : 'mouseup',
@@ -3287,7 +3698,7 @@
             document.getElementById('airtableModal').classList.remove('active');
         }
 
-        function saveAirtableSettings() {
+        async function saveAirtableSettings() {
             const apiKey = document.getElementById('airtableApiKey').value.trim();
             const baseId = document.getElementById('airtableBaseId').value.trim();
             const tableName = document.getElementById('airtableTableName').value.trim() || 'Objekte';
@@ -3296,12 +3707,15 @@
             AIRTABLE_CONFIG.baseId = baseId;
             AIRTABLE_CONFIG.tableName = tableName;
 
-            localStorage.setItem('airtable_api_key', apiKey);
-            localStorage.setItem('airtable_base_id', baseId);
-            localStorage.setItem('airtable_table_name', tableName);
+            // Save to IDB only (no localStorage for credentials)
+            try {
+                await dbPut('settings', { key: 'airtable_api_key', value: apiKey });
+                await dbPut('settings', { key: 'airtable_base_id', value: baseId });
+                await dbPut('settings', { key: 'airtable_table_name', value: tableName });
+            } catch(e) {}
 
             closeAirtableModal();
-            renderCurrentPage();
+            reRenderKeepScroll();
             showToast('Airtable-Einstellungen gespeichert');
         }
 
@@ -3348,7 +3762,7 @@
             if (!AIRTABLE_CONFIG.apiKey || !AIRTABLE_CONFIG.baseId) {
                 const msg = 'Airtable nicht konfiguriert';
                 console.error(msg);
-                if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + msg + '</span>';
+                if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + escapeHtml(msg) + '</span>';
                 return;
             }
 
@@ -3370,7 +3784,7 @@
                     const error = await response.json();
                     const msg = 'Fehler: ' + (error.error?.message || response.statusText);
                     console.error(msg, error);
-                    if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + msg + '</span>';
+                    if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + escapeHtml(msg) + '</span>';
                     return;
                 }
 
@@ -3390,7 +3804,7 @@
                         const plz = f.PLZ || '';
                         const stadt = f.Stadt || f.Ort || '';
                         const label = strasse ? `${strasse}, ${plz} ${stadt}`.trim() : record.id;
-                        select.innerHTML += `<option value="${record.id}">${label}</option>`;
+                        select.innerHTML += `<option value="${escapeHtml(record.id)}">${escapeHtml(label)}</option>`;
                     });
                     if (statusEl) statusEl.innerHTML = '<span style="color:green;">' + airtableRecords.length + ' Objekte geladen</span>';
                 } else {
@@ -3399,7 +3813,7 @@
                 }
             } catch (err) {
                 console.error('Fetch error:', err);
-                if (statusEl) statusEl.innerHTML = '<span style="color:red;">Fehler: ' + err.message + '</span>';
+                if (statusEl) statusEl.innerHTML = '<span style="color:red;">' + escapeHtml('Fehler: ' + err.message) + '</span>';
             }
         }
 
@@ -3422,8 +3836,8 @@
                 }
 
                 mapAirtableToProject(record.fields, record.id, projektId);
-                saveProject();
-                renderCurrentPage();
+                scheduleSave();
+                reRenderKeepScroll();
                 showToast('Objekt geladen: ' + (record.fields['Straße'] || record.fields.Adresse || recordId));
             } else {
                 // Fallback: direkt von Airtable laden
@@ -3476,8 +3890,8 @@
 
                 const record = await response.json();
                 mapAirtableToProject(record.fields, record.id);
-                saveProject();
-                renderCurrentPage();
+                scheduleSave();
+                reRenderKeepScroll();
                 showToast('Projekt aus Airtable geladen');
             } catch (err) {
                 showToast('Ladefehler: ' + err.message);
@@ -3538,43 +3952,99 @@
         // ==================== SPEICHERN & LADEN ====================
 
         function saveProject(silent = false) {
-            localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData));
-            if (!silent) showToast('Projekt gespeichert');
+            _saveChain = _saveChain.then(() => _doSave(silent)).catch(() => {});
+            return _saveChain;
         }
 
-        function loadProject() {
-            // Try new format first
+        async function _doSave(silent = false) {
+            updateSaveIndicator('saving');
+            try {
+                if (_db && activeProjectId) {
+                    const proj = await dbGet('projects', activeProjectId);
+                    if (proj) {
+                        proj.data = JSON.parse(JSON.stringify(projectData));
+                        proj.modified = new Date().toISOString();
+                        proj.name = projectData.deckblatt?.adresse || proj.name || 'Unbenannt';
+                        await dbPut('projects', proj);
+                    }
+                    queueSync(activeProjectId);
+                } else {
+                    localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData));
+                }
+                updateSaveIndicator('saved');
+                if (!silent) showToast('Projekt gespeichert');
+            } catch (e) {
+                console.error('Save error:', e);
+                try { localStorage.setItem('immokonzept_project_v2', JSON.stringify(projectData)); } catch(le) {}
+                updateSaveIndicator('saved');
+                if (!silent) showToast('Gespeichert (localStorage Fallback)');
+            }
+        }
+
+        async function loadProject(projectId) {
+            if (!_db) { await loadProjectLegacy(); return; }
+            try {
+                const proj = await dbGet('projects', projectId);
+                if (proj && proj.data) {
+                    projectData = JSON.parse(JSON.stringify(proj.data));
+                    if (!projectData.geschosse) projectData.geschosse = [];
+                    if (!projectData.bauplaene) projectData.bauplaene = [];
+                    if (!projectData.dach) projectData.dach = { skl: 1 };
+                    if (!projectData.fassaden) projectData.fassaden = { nord: {}, ost: {}, sued: {}, west: {} };
+                    if (!projectData.deckblatt) projectData.deckblatt = { gebaeudeArt: '' };
+                    if (!projectData.kostenpositionen) projectData.kostenpositionen = [];
+                    if (!projectData.objektdaten) projectData.objektdaten = {};
+                    if (!projectData.maengel) projectData.maengel = [];
+                    activeProjectId = projectId;
+                    document.getElementById('projectName').textContent = projectData.deckblatt?.adresse || proj.name || 'Projekt';
+                }
+            } catch (e) {
+                console.error('Load error:', e);
+                await loadProjectLegacy();
+            }
+        }
+
+        async function loadProjectLegacy() {
             let saved = localStorage.getItem('immokonzept_project_v2');
             if (saved) {
                 projectData = JSON.parse(saved);
-                // Sicherstellen dass neue Felder existieren
                 if (!projectData.kostenpositionen) projectData.kostenpositionen = [];
                 if (!projectData.objektdaten) projectData.objektdaten = {};
+                if (!projectData.maengel) projectData.maengel = [];
+                // Create IDB entry if database is available
+                if (_db && projectData.deckblatt) {
+                    try {
+                        const id = 'proj_' + Date.now();
+                        activeProjectId = id;
+                        await dbPut('projects', {
+                            id: id,
+                            name: projectData.deckblatt.objektBezeichnung || projectData.deckblatt.adresse || 'Importiertes Projekt',
+                            created: new Date().toISOString(),
+                            modified: new Date().toISOString(),
+                            status: 'aktiv',
+                            data: JSON.parse(JSON.stringify(projectData))
+                        });
+                    } catch(e) { console.warn('IDB entry creation from legacy failed:', e); }
+                }
                 return;
             }
-
-            // Migrate from old format
             saved = localStorage.getItem('immokonzept_project');
             if (saved) {
                 const oldData = JSON.parse(saved);
                 migrateOldData(oldData);
-                saveProject(true);
+                await saveProject(true);
                 localStorage.removeItem('immokonzept_project');
             }
         }
 
         function migrateOldData(oldData) {
-            // Deckblatt übernehmen
             projectData.deckblatt = oldData.deckblatt || {};
-
-            // Alte feste Geschosse in Array konvertieren
             const oldFloors = {
                 'keller': { name: 'Kellergeschoss', kuerzel: 'KG' },
                 'eg': { name: 'Erdgeschoss', kuerzel: 'EG' },
                 'og1': { name: '1. Obergeschoss', kuerzel: '1.OG' },
                 'dg': { name: 'Dachgeschoss', kuerzel: 'DG' }
             };
-
             if (oldData.raeume) {
                 Object.entries(oldFloors).forEach(([key, info]) => {
                     if (oldData.raeume[key] && oldData.raeume[key].length > 0) {
@@ -3587,12 +4057,609 @@
                     }
                 });
             }
-
-            // Dach und Fassaden übernehmen
             projectData.dach = oldData.dach || { skl: 1 };
             projectData.fassaden = oldData.fassaden || { nord: {}, ost: {}, sued: {}, west: {} };
-
             showToast('Projekt wurde in neues Format migriert');
+        }
+
+        // ==================== MULTI-PROJEKT VERWALTUNG ====================
+
+        async function renderProjektliste() {
+            const main = document.getElementById('mainContent');
+            main.innerHTML = '<div class="empty-state">Lade Projekte...</div>';
+            let projects = [];
+            try {
+                if (_db) projects = await dbGetAll('projects');
+            } catch (e) { console.error(e); }
+
+            // Sort by modified date descending
+            projects.sort((a, b) => new Date(b.modified || 0) - new Date(a.modified || 0));
+
+            let cardsHtml = '';
+            if (projects.length === 0) {
+                cardsHtml = `
+                    <div class="empty-state">
+                        <div class="icon">📋</div>
+                        <h3>Keine Projekte</h3>
+                        <p>Erstellen Sie ein neues Projekt oder importieren Sie eine JSON-Datei.</p>
+                    </div>`;
+            } else {
+                cardsHtml = projects.map(p => {
+                    const d = p.data?.deckblatt || {};
+                    const floors = p.data?.geschosse?.length || 0;
+                    const kosten = p.data?.kostenpositionen?.length || 0;
+                    const modified = p.modified ? new Date(p.modified).toLocaleDateString('de-DE') : '-';
+                    const isActive = p.id === activeProjectId;
+                    return `
+                        <div class="project-card ${isActive ? 'active-project' : ''}" onclick="openProject('${p.id}')">
+                            <h3>${escapeHtml(d.adresse || p.name || 'Unbenannt')}</h3>
+                            <div class="project-meta">
+                                ${d.projektnummer ? escapeHtml(d.projektnummer) + ' · ' : ''}${floors} Geschosse · ${kosten} Kosten · ${modified}
+                            </div>
+                            <div class="project-actions" onclick="event.stopPropagation()">
+                                <button class="btn btn-outline btn-sm" onclick="duplicateProject('${p.id}')">Kopie</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">Löschen</button>
+                            </div>
+                        </div>`;
+                }).join('');
+            }
+
+            // Sync URL setting
+            let syncUrl = '';
+            try {
+                const s = await dbGet('settings', 'sync_webhook_url');
+                syncUrl = s?.value || '';
+            } catch(e) {}
+
+            main.innerHTML = `
+                <div class="card">
+                    <h2>Projekte</h2>
+                    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                        <button class="btn btn-primary" onclick="createNewProject()" style="flex:1;">+ Neues Projekt</button>
+                        <button class="btn btn-outline" onclick="importProjectFromJSON()" style="flex:1;">JSON Import</button>
+                    </div>
+                    ${cardsHtml}
+                </div>
+                <div class="card">
+                    <h2>Sync-Einstellungen</h2>
+                    <div class="form-group">
+                        <label>n8n Webhook URL für Auto-Sync</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="syncWebhookUrl" placeholder="https://n8n.../webhook/sync" value="${escapeHtml(syncUrl)}" style="flex:1;">
+                            <button class="btn btn-outline" onclick="saveSyncUrl()">Speichern</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        async function createNewProject() {
+            if (!_db) { showToast('Datenbank nicht verfügbar'); return; }
+            // Save current project first
+            if (activeProjectId) await saveProject(true);
+
+            const id = 'proj_' + Date.now();
+            const newData = getDefaultProjectData();
+            await dbPut('projects', {
+                id: id,
+                name: 'Neues Projekt',
+                created: new Date().toISOString(),
+                modified: new Date().toISOString(),
+                status: 'aktiv',
+                data: newData
+            });
+            await openProject(id);
+            showToast('Neues Projekt erstellt');
+        }
+
+        async function openProject(id) {
+            if (activeProjectId && activeProjectId !== id) {
+                await saveProject(true);
+            }
+            await loadProject(id);
+            currentPage = 'deckblatt';
+            renderNavigation();
+            renderCurrentPage();
+            updateBottomActions();
+        }
+
+        async function deleteProject(id) {
+            if (!confirm('Projekt wirklich löschen? Dies kann nicht rückgängig gemacht werden.')) return;
+            try {
+                await dbDelete('projects', id);
+                if (activeProjectId === id) {
+                    activeProjectId = null;
+                    projectData = getDefaultProjectData();
+                    document.getElementById('projectName').textContent = 'Kein Projekt geladen';
+                    updateBottomActions();
+                }
+                currentPage = 'projektliste';
+                renderNavigation();
+                renderCurrentPage();
+                showToast('Projekt gelöscht');
+            } catch (e) {
+                showToast('Fehler: ' + e.message);
+            }
+        }
+
+        async function duplicateProject(id) {
+            try {
+                const orig = await dbGet('projects', id);
+                if (!orig) return;
+                const newId = 'proj_' + Date.now();
+                const copy = JSON.parse(JSON.stringify(orig.data));
+                await dbPut('projects', {
+                    id: newId,
+                    name: (orig.name || 'Projekt') + ' (Kopie)',
+                    created: new Date().toISOString(),
+                    modified: new Date().toISOString(),
+                    status: 'aktiv',
+                    data: copy
+                });
+                currentPage = 'projektliste';
+                renderCurrentPage();
+                showToast('Projekt dupliziert');
+            } catch (e) {
+                showToast('Fehler: ' + e.message);
+            }
+        }
+
+        function importProjectFromJSON() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    // Check if it's an export (has _meta) or raw projectData
+                    let projData;
+                    if (data._meta && data._meta.format === 'immokonzept-datenaufnahme') {
+                        // This is an export, reconstruct projectData
+                        projData = getDefaultProjectData();
+                        if (data.gebaeude) {
+                            projData.deckblatt = {
+                                adresse: data.gebaeude.adresse,
+                                projektnummer: data.gebaeude.projektnummer,
+                                gebaeudeArt: data.gebaeude.gebaeudeArt,
+                                baujahr: data.gebaeude.baujahr,
+                                vollgeschosse: data.gebaeude.vollgeschosse,
+                                wohnflaeche: data.gebaeude.wohnflaeche_m2,
+                                nutzflaeche: data.gebaeude.nutzflaeche_m2,
+                                grundstueck: data.gebaeude.grundstueck_m2,
+                                bri: data.gebaeude.bri_m3
+                            };
+                        }
+                        showToast('Export-Datei importiert (Grunddaten)');
+                    } else if (data.deckblatt) {
+                        // Raw projectData
+                        projData = data;
+                    } else {
+                        showToast('Unbekanntes Dateiformat');
+                        return;
+                    }
+                    const id = 'proj_' + Date.now();
+                    await dbPut('projects', {
+                        id: id,
+                        name: projData.deckblatt?.adresse || file.name.replace('.json', ''),
+                        created: new Date().toISOString(),
+                        modified: new Date().toISOString(),
+                        status: 'aktiv',
+                        data: projData
+                    });
+                    currentPage = 'projektliste';
+                    renderCurrentPage();
+                    showToast('Projekt importiert');
+                } catch (err) {
+                    showToast('Import-Fehler: ' + err.message);
+                }
+            };
+            input.click();
+        }
+
+        async function saveSyncUrl() {
+            const url = document.getElementById('syncWebhookUrl')?.value?.trim() || '';
+            try {
+                await dbPut('settings', { key: 'sync_webhook_url', value: url });
+                showToast(url ? 'Sync-URL gespeichert' : 'Sync deaktiviert');
+            } catch (e) {
+                showToast('Fehler: ' + e.message);
+            }
+        }
+
+        // ==================== MÄNGELLISTE ====================
+
+        function getMaengelCount() {
+            const manual = (projectData.maengel || []).length;
+            const auto = collectRoomMaengel().length;
+            return manual + auto;
+        }
+
+        function collectRoomMaengel() {
+            const result = [];
+            (projectData.geschosse || []).forEach(floor => {
+                const checkRoom = (room) => {
+                    if (room.bemerkung && room.bemerkung.trim()) {
+                        result.push({
+                            geschossId: floor.id,
+                            geschossName: floor.kuerzel || floor.name,
+                            raum: room.name || room.nummer || 'Unbenannt',
+                            beschreibung: room.bemerkung,
+                            quelle: 'raum-bemerkung'
+                        });
+                    }
+                };
+                if (floor.allgemein) floor.allgemein.forEach(checkRoom);
+                if (floor.units) floor.units.forEach(u => (u.raeume || []).forEach(checkRoom));
+                if (floor.raeume) floor.raeume.forEach(checkRoom);
+            });
+            return result;
+        }
+
+        function renderMaengel() {
+            if (!projectData.maengel) projectData.maengel = [];
+            const manual = projectData.maengel;
+            const auto = collectRoomMaengel();
+
+            // Geschoss options for form
+            const geschossOpts = projectData.geschosse.map(g =>
+                `<option value="${escapeHtml(g.id)}" data-name="${escapeHtml(g.kuerzel)}">${escapeHtml(g.kuerzel)} - ${escapeHtml(g.name)}</option>`
+            ).join('');
+
+            // Manual list
+            const manualHtml = manual.length > 0 ? manual.map((m, idx) => `
+                <div class="mangel-card prio-${escapeHtml(m.prioritaet)}">
+                    <div>
+                        <strong>${escapeHtml(m.geschossName || '-')}</strong> · ${escapeHtml(m.raum || '-')}
+                        <br><span style="font-size:0.9rem;">${escapeHtml(m.beschreibung)}</span>
+                        <br><span class="mangel-prio ${m.prioritaet}">${m.prioritaet}</span>
+                        ${m.kostenschaetzung ? `<span style="margin-left:8px;font-size:0.85rem;color:var(--text-light);">${Number(m.kostenschaetzung).toLocaleString('de-DE')} €</span>` : ''}
+                    </div>
+                    <button class="btn btn-danger btn-sm" onclick="deleteMangel(${idx})">✕</button>
+                </div>
+            `).join('') : '<p style="color:var(--text-light);text-align:center;padding:10px;">Keine manuellen Mängel erfasst</p>';
+
+            // Auto list
+            const autoHtml = auto.length > 0 ? auto.map(m => `
+                <div class="mangel-auto">
+                    <strong>${escapeHtml(m.geschossName)}</strong> · ${escapeHtml(m.raum)}: ${escapeHtml(m.beschreibung)}
+                </div>
+            `).join('') : '<p style="color:var(--text-light);text-align:center;padding:10px;">Keine Bemerkungen in Räumen</p>';
+
+            return `
+                <div class="card">
+                    <h2>Mangel erfassen</h2>
+                    <div class="form-group">
+                        <label>Geschoss</label>
+                        <select id="mangelGeschoss">
+                            <option value="">-- wählen --</option>
+                            ${geschossOpts}
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Raum</label>
+                            <input type="text" id="mangelRaum" placeholder="z.B. Wohnzimmer">
+                        </div>
+                        <div class="form-group">
+                            <label>Priorität</label>
+                            <div class="option-chips" id="mangelPrio">
+                                <span class="chip" data-value="niedrig" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')" style="--chip-active-bg:#48bb78;--chip-active-border:#48bb78">Niedrig</span>
+                                <span class="chip active" data-value="mittel" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')" style="--chip-active-bg:#ecc94b;--chip-active-border:#ecc94b;--chip-active-color:#744210">Mittel</span>
+                                <span class="chip" data-value="hoch" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')" style="--chip-active-bg:#ed8936;--chip-active-border:#ed8936">Hoch</span>
+                                <span class="chip" data-value="kritisch" onclick="this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')" style="--chip-active-bg:#e53e3e;--chip-active-border:#e53e3e">Kritisch</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Beschreibung</label>
+                        <textarea id="mangelBeschreibung" placeholder="Mangel beschreiben..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Kostenschätzung (optional, €)</label>
+                        <input type="number" id="mangelKosten" placeholder="z.B. 2500">
+                    </div>
+                    <button class="btn btn-primary btn-block" onclick="addMangel()">+ Mangel hinzufügen</button>
+                </div>
+
+                <div class="card">
+                    <h2>Manuelle Mängel (${manual.length})</h2>
+                    ${manualHtml}
+                </div>
+
+                <div class="card">
+                    <h2>Auto-gesammelt aus Raum-Bemerkungen (${auto.length})</h2>
+                    ${autoHtml}
+                </div>
+            `;
+        }
+
+        function addMangel() {
+            const geschossSelect = document.getElementById('mangelGeschoss');
+            const geschossId = geschossSelect?.value || '';
+            const geschossName = geschossSelect?.selectedOptions[0]?.dataset?.name || '';
+            const raum = document.getElementById('mangelRaum')?.value || '';
+            const beschreibung = document.getElementById('mangelBeschreibung')?.value?.trim() || '';
+            const prioritaet = getChipValue('mangelPrio') || 'mittel';
+            const kostenschaetzung = parseFloat(document.getElementById('mangelKosten')?.value) || 0;
+
+            if (!beschreibung) {
+                showToast('Bitte Beschreibung eingeben');
+                return;
+            }
+
+            if (!projectData.maengel) projectData.maengel = [];
+            projectData.maengel.push({
+                id: 'mangel_' + Date.now(),
+                geschossId,
+                geschossName,
+                raum,
+                beschreibung,
+                prioritaet,
+                kostenschaetzung: kostenschaetzung || null,
+                quelle: 'manuell'
+            });
+
+            scheduleSave();
+            renderNavigation();
+            reRenderKeepScroll();
+            showToast('Mangel hinzugefügt');
+        }
+
+        function deleteMangel(idx) {
+            if (!confirm('Mangel löschen?')) return;
+            projectData.maengel.splice(idx, 1);
+            scheduleSave();
+            renderNavigation();
+            reRenderKeepScroll();
+        }
+
+        // ==================== PDF EXPORT VIA GOTENBERG ====================
+
+        async function exportPDF() {
+            // Get Gotenberg URL from settings
+            let gotenbergUrl = '';
+            try {
+                const s = await dbGet('settings', 'gotenberg_url');
+                gotenbergUrl = s?.value || '';
+            } catch(e) {}
+
+            if (!gotenbergUrl) {
+                gotenbergUrl = prompt('Gotenberg URL eingeben (z.B. http://localhost:3001):', 'http://localhost:3001');
+                if (!gotenbergUrl) return;
+                try {
+                    await dbPut('settings', { key: 'gotenberg_url', value: gotenbergUrl });
+                } catch(e) {}
+            }
+
+            showToast('PDF wird erstellt...');
+            const html = buildPdfHtml();
+
+            try {
+                const formData = new FormData();
+                const blob = new Blob([html], { type: 'text/html' });
+                formData.append('files', blob, 'index.html');
+                formData.append('marginTop', '0.6');
+                formData.append('marginBottom', '0.8');
+                formData.append('marginLeft', '0.8');
+                formData.append('marginRight', '0.8');
+                formData.append('paperWidth', '8.27');
+                formData.append('paperHeight', '11.69');
+
+                const resp = await fetch(gotenbergUrl + '/forms/chromium/convert/html', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!resp.ok) throw new Error('Gotenberg Fehler: ' + resp.status);
+
+                const pdfBlob = await resp.blob();
+                const url = URL.createObjectURL(pdfBlob);
+                const a = document.createElement('a');
+                const d = projectData.deckblatt;
+                a.href = url;
+                a.download = `Datenaufnahme_${d.projektnummer || 'Export'}_${new Date().toISOString().split('T')[0]}.pdf`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('PDF heruntergeladen');
+            } catch (e) {
+                if (e.message && (e.message.includes('fetch') || e.message.includes('network') || e.message.includes('Failed'))) {
+                    showToast('Gotenberg nicht erreichbar. SSH-Tunnel aktiv?');
+                } else {
+                    showToast('PDF-Fehler: ' + e.message);
+                }
+            }
+        }
+
+        function buildPdfHtml() {
+            const d = projectData.deckblatt || {};
+            const sklLabels = { 1: 'sehr gut (1)', 2: 'gut (2)', 3: 'mittel (3)', 4: 'ausreichend (4)', 5: 'mangelhaft (5)' };
+            const sklColors = { 1: '#48bb78', 2: '#68d391', 3: '#ecc94b', 4: '#ed8936', 5: '#e53e3e' };
+            const sklBadge = (skl) => skl ? `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.8rem;font-weight:600;background:${sklColors[skl]};color:${skl===3?'#744210':'white'};">${sklLabels[skl] || skl}</span>` : '-';
+
+            // Cover
+            let html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
+            <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+            <style>
+                :root { --petrol: #0984E3; --anthrazit: #2D3436; --success: #00B894; --warning: #FDCB6E; --danger: #D63031; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Source Sans Pro', sans-serif; color: var(--anthrazit); font-size: 10pt; line-height: 1.5; }
+                h1 { font-size: 20pt; color: var(--petrol); margin-bottom: 6px; }
+                h2 { font-size: 13pt; color: var(--petrol); border-left: 3pt solid var(--petrol); padding-left: 10px; margin: 16px 0 8px; background: #f8f9fa; padding: 6px 10px; }
+                h3 { font-size: 11pt; color: var(--anthrazit); margin: 10px 0 4px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+                th { background: var(--petrol); color: white; text-align: left; padding: 6px 10px; font-size: 9pt; }
+                td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 9pt; }
+                tr:nth-child(even) { background: #f7fafc; }
+                .cover { text-align: center; padding: 80px 40px 40px; page-break-after: always; }
+                .cover .brand { background: linear-gradient(135deg, #1a365d, #2c5282); color: white; padding: 40px; border-radius: 8px; margin-bottom: 30px; }
+                .cover .brand h1 { color: white; font-size: 28pt; }
+                .cover .info-table td { border: none; padding: 4px 12px; font-size: 11pt; }
+                .cover .info-table td:first-child { font-weight: 600; color: #718096; text-align: right; width: 40%; }
+                .section { page-break-inside: avoid; margin-bottom: 12px; }
+                .floor-break { page-break-before: always; }
+                .mangel-row td:first-child { font-weight: 600; }
+                .prio-badge { display:inline-block; padding:1px 6px; border-radius:3px; font-size:8pt; font-weight:600; }
+                .prio-niedrig { background:#c6f6d5; color:#276749; }
+                .prio-mittel { background:#fefcbf; color:#744210; }
+                .prio-hoch { background:#feebc8; color:#7b341e; }
+                .prio-kritisch { background:#fed7d7; color:#9b2c2c; }
+                .total-row { background: var(--petrol) !important; color: white; font-weight: 700; }
+                .total-row td { color: white; border-bottom: none; }
+            </style></head><body>`;
+
+            // Cover page
+            html += `<div class="cover">
+                <div class="brand">
+                    <h1>ImmoKonzept</h1>
+                    <p style="font-size:14pt;opacity:0.9;">Datenaufnahme - Besichtigungsprotokoll</p>
+                </div>
+                <table class="info-table" style="margin:0 auto;max-width:400px;">
+                    <tr><td>Adresse</td><td>${escapeHtml(d.adresse || '-')}</td></tr>
+                    <tr><td>Projektnr.</td><td>${escapeHtml(d.projektnummer || '-')}</td></tr>
+                    <tr><td>Datum</td><td>${escapeHtml(d.datum || '-')}</td></tr>
+                    <tr><td>Uhrzeit</td><td>${escapeHtml((d.uhrzeitVon || '') + (d.uhrzeitBis ? ' - ' + d.uhrzeitBis : ''))}</td></tr>
+                    <tr><td>Beteiligte</td><td>${escapeHtml(d.beteiligte || '-')}</td></tr>
+                    <tr><td>Gebäudeart</td><td>${escapeHtml(GEBAEUDEARTEN[d.gebaeudeArt] || d.gebaeudeArt || '-')}</td></tr>
+                    <tr><td>Baujahr</td><td>${escapeHtml(d.baujahr || '-')}</td></tr>
+                </table>
+                <p style="margin-top:30px;font-size:9pt;color:#718096;">Erstellt am ${new Date().toLocaleDateString('de-DE')} · App Version 3.0</p>
+            </div>`;
+
+            // Allgemeine Objektdaten
+            html += `<h2>Allgemeine Objektdaten</h2>
+            <div class="section"><table>
+                <tr><td style="width:40%;font-weight:600;">Gebäudeart</td><td>${escapeHtml(GEBAEUDEARTEN[d.gebaeudeArt] || d.gebaeudeArt || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Baujahr</td><td>${escapeHtml(d.baujahr || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Vollgeschosse</td><td>${escapeHtml(d.vollgeschosse || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Wohnfläche</td><td>${d.wohnflaeche ? d.wohnflaeche + ' m²' : '-'}</td></tr>
+                <tr><td style="font-weight:600;">Nutzfläche</td><td>${d.nutzflaeche ? d.nutzflaeche + ' m²' : '-'}</td></tr>
+                <tr><td style="font-weight:600;">Grundstück</td><td>${d.grundstueck ? d.grundstueck + ' m²' : '-'}</td></tr>
+                <tr><td style="font-weight:600;">BRI</td><td>${d.bri ? d.bri + ' m³' : '-'}</td></tr>
+            </table></div>`;
+
+            // Geschosse
+            projectData.geschosse.forEach((floor, fi) => {
+                html += `<div class="${fi > 0 ? 'floor-break' : ''}">`;
+                html += `<h2>${escapeHtml(floor.name || floor.kuerzel)}</h2>`;
+
+                const renderRoomTable = (rooms, label) => {
+                    if (!rooms || rooms.length === 0) return '';
+                    let t = label ? `<h3>${escapeHtml(label)}</h3>` : '';
+                    t += `<table><tr><th>Raum</th><th>Fläche</th><th>Bemerkungen</th></tr>`;
+                    rooms.forEach(room => {
+                        t += `<tr><td style="font-weight:600;">${escapeHtml(room.name || room.nummer || '-')}</td>
+                            <td>${room.flaeche ? room.flaeche + ' m²' : '-'}</td>
+                            <td>${escapeHtml(room.bemerkung || '-')}</td></tr>`;
+                        // Bauteile
+                        if (room.bauteile && Object.keys(room.bauteile).length > 0) {
+                            Object.entries(room.bauteile).forEach(([key, val]) => {
+                                if (val && (val.wert || val.skl)) {
+                                    t += `<tr><td style="padding-left:20px;color:#718096;">${escapeHtml(key)}</td>
+                                        <td>${val.wert || '-'}</td><td>${val.skl ? sklBadge(val.skl) : '-'}</td></tr>`;
+                                }
+                            });
+                        }
+                    });
+                    t += '</table>';
+                    return t;
+                };
+
+                if (floor.allgemein) html += renderRoomTable(floor.allgemein, 'Allgemeinbereiche');
+                if (floor.units) {
+                    floor.units.forEach(u => {
+                        const label = u.typ === 'WE' ? `Wohnung ${u.nummer}` : `Gewerbe ${u.nummer}`;
+                        html += renderRoomTable(u.raeume, label);
+                    });
+                }
+                if (floor.raeume) html += renderRoomTable(floor.raeume);
+                html += '</div>';
+            });
+
+            // Dach
+            html += `<h2>Dach</h2><div class="section"><table>
+                <tr><td style="width:40%;font-weight:600;">Dachform</td><td>${escapeHtml(projectData.dach?.form || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Eindeckung</td><td>${escapeHtml(projectData.dach?.eindeckung || '-')}</td></tr>
+                <tr><td style="font-weight:600;">Fläche</td><td>${projectData.dach?.flaeche ? projectData.dach.flaeche + ' m²' : '-'}</td></tr>
+                <tr><td style="font-weight:600;">Zustand</td><td>${sklBadge(projectData.dach?.skl)}</td></tr>
+                <tr><td style="font-weight:600;">Bemerkung</td><td>${escapeHtml(projectData.dach?.zustand || '-')}</td></tr>
+            </table></div>`;
+
+            // Fassaden
+            html += `<h2>Fassaden</h2><div class="section"><table>
+                <tr><th>Richtung</th><th>Material</th><th>Fläche</th><th>Zustand</th><th>Bemerkung</th></tr>`;
+            ['nord', 'ost', 'sued', 'west'].forEach(r => {
+                const f = projectData.fassaden?.[r] || {};
+                html += `<tr><td style="font-weight:600;">${r.charAt(0).toUpperCase() + r.slice(1)}</td>
+                    <td>${escapeHtml(f.art || '-')}</td>
+                    <td>${f.flaeche ? f.flaeche + ' m²' : '-'}</td>
+                    <td>${sklBadge(f.skl)}</td>
+                    <td>${escapeHtml(f.zustand || '-')}</td></tr>`;
+            });
+            html += '</table></div>';
+
+            // Maengel
+            const allMaengel = [...(projectData.maengel || []), ...collectRoomMaengel()];
+            if (allMaengel.length > 0) {
+                html += `<div class="floor-break"><h2>Mängelliste (${allMaengel.length})</h2><div class="section"><table>
+                    <tr><th>Geschoss</th><th>Raum</th><th>Beschreibung</th><th>Priorität</th><th>Kosten</th></tr>`;
+                allMaengel.forEach(m => {
+                    const prio = m.prioritaet || '-';
+                    html += `<tr class="mangel-row">
+                        <td>${escapeHtml(m.geschossName || '-')}</td>
+                        <td>${escapeHtml(m.raum || '-')}</td>
+                        <td>${escapeHtml(m.beschreibung || '')}</td>
+                        <td><span class="prio-badge prio-${prio}">${prio}</span></td>
+                        <td>${m.kostenschaetzung ? Number(m.kostenschaetzung).toLocaleString('de-DE') + ' €' : '-'}</td>
+                    </tr>`;
+                });
+                html += '</table></div></div>';
+            }
+
+            // Kosten
+            let total = 0;
+            const positions = projectData.kostenpositionen || [];
+            if (positions.length > 0 || (projectData.dach?.flaeche)) {
+                html += `<h2>Kostenschätzung</h2><div class="section"><table>
+                    <tr><th>Bauteil</th><th>Menge</th><th>SKL</th><th>Kosten (netto)</th></tr>`;
+                positions.forEach(pos => {
+                    const item = KOSTENKATALOG[pos.typ];
+                    const cost = calculateCost(pos.typ, pos.menge, pos.skl);
+                    total += cost;
+                    html += `<tr><td>${escapeHtml(item?.name || pos.typ)}</td>
+                        <td>${pos.menge} ${item?.einheit || ''}</td>
+                        <td>${sklBadge(pos.skl)}</td>
+                        <td>${cost.toLocaleString('de-DE')} €</td></tr>`;
+                });
+                // Dach
+                const dachF = parseFloat(projectData.dach?.flaeche) || 0;
+                if (dachF > 0) {
+                    const dc = calculateCost('steildach_belag', dachF, projectData.dach?.skl || 1);
+                    total += dc;
+                    html += `<tr><td>Dach</td><td>${dachF} m²</td><td>${sklBadge(projectData.dach?.skl)}</td><td>${dc.toLocaleString('de-DE')} €</td></tr>`;
+                }
+                // Fassade
+                let fc = 0;
+                Object.values(projectData.fassaden || {}).forEach(f => {
+                    const fl = parseFloat(f.flaeche) || 0;
+                    if (fl > 0) fc += calculateCost('aussenwand_innen', fl, f.skl || 1);
+                });
+                if (fc > 0) {
+                    total += fc;
+                    html += `<tr><td>Fassaden</td><td>-</td><td>-</td><td>${fc.toLocaleString('de-DE')} €</td></tr>`;
+                }
+                html += `<tr class="total-row"><td colspan="3">Gesamtkosten (netto)</td><td>${total.toLocaleString('de-DE')} €</td></tr>`;
+                html += `<tr class="total-row"><td colspan="3">Gesamtkosten (brutto, 19%)</td><td>${(total * 1.19).toLocaleString('de-DE')} €</td></tr>`;
+                const wf = parseFloat(d.wohnflaeche) || 0;
+                if (wf > 0) {
+                    html += `<tr style="background:#ed8936;color:white;font-weight:700;"><td colspan="3">Kennwert €/m² (${wf} m²)</td><td>${Math.round((total * 1.19) / wf).toLocaleString('de-DE')} €/m²</td></tr>`;
+                }
+                html += '</table></div>';
+            }
+
+            html += '</body></html>';
+            return html;
         }
 
         // ==================== EXCEL EXPORT ====================
@@ -3642,23 +4709,15 @@
 
                 // Hilfsfunktion für Raum-Export
                 const exportRoom = (room, bereich) => {
-                    sheetData.push([bereich, room.nummer || '', room.name]);
-                    sheetData.push(['Raumelement', 'Menge', 'Einheit', 'SKl', 'Beschreibung/Schäden', 'Kosten']);
-
-                    if (room.elemente) {
-                        room.elemente.forEach(el => {
-                            const item = KOSTENKATALOG[el.typ];
-                            const cost = calculateCost(el.typ, el.menge, el.skl);
-                            sheetData.push([
-                                item ? item.name : el.typ,
-                                el.menge,
-                                item ? item.einheit : '',
-                                el.skl,
-                                el.beschreibung || '',
-                                cost.toFixed(2) + ' €'
-                            ]);
+                    sheetData.push([bereich, room.nummer || '', room.name, 'Fläche: ' + (room.flaeche || '-') + ' m²']);
+                    if (room.bauteile && Object.keys(room.bauteile).length > 0) {
+                        sheetData.push(['Bauteil', 'SKL', 'Bemerkung']);
+                        Object.entries(room.bauteile).forEach(([key, bt]) => {
+                            const label = RAUM_BAUTEILE ? (RAUM_BAUTEILE.find(b => b.key === key)?.name || key) : key;
+                            sheetData.push([label, bt.skl || '-', bt.bemerkung || '']);
                         });
                     }
+                    if (room.bemerkung) sheetData.push(['Bemerkung:', room.bemerkung]);
                     sheetData.push(['']);
                 };
 
@@ -3690,58 +4749,25 @@
                 XLSX.utils.book_append_sheet(wb, ws, sheetName);
             });
 
-            // === KOSTENSCHÄTZUNG ===
+            // === KOSTENSCHÄTZUNG (aus kostenpositionen) ===
             const kostenData = [
                 ['Kostenschätzung'],
                 [''],
-                ['Bereich', 'Anzahl Elemente', 'Geschätzte Kosten']
+                ['Typ', 'Menge', 'Einheit', 'SKL', 'Kosten']
             ];
 
             let total = 0;
-            projectData.geschosse.forEach(floor => {
-                let floorCost = 0;
-                let count = 0;
-
-                // Allgemeinbereiche
-                if (floor.allgemein) {
-                    floor.allgemein.forEach(room => {
-                        if (room.elemente) {
-                            room.elemente.forEach(el => {
-                                floorCost += calculateCost(el.typ, el.menge, el.skl);
-                                count++;
-                            });
-                        }
-                    });
-                }
-
-                // Einheiten
-                if (floor.units) {
-                    floor.units.forEach(unit => {
-                        unit.raeume.forEach(room => {
-                            if (room.elemente) {
-                                room.elemente.forEach(el => {
-                                    floorCost += calculateCost(el.typ, el.menge, el.skl);
-                                    count++;
-                                });
-                            }
-                        });
-                    });
-                }
-
-                // Alte Struktur
-                if (floor.raeume) {
-                    floor.raeume.forEach(room => {
-                        if (room.elemente) {
-                            room.elemente.forEach(el => {
-                                floorCost += calculateCost(el.typ, el.menge, el.skl);
-                                count++;
-                            });
-                        }
-                    });
-                }
-
-                kostenData.push([floor.name, count, floorCost.toFixed(2) + ' €']);
-                total += floorCost;
+            (projectData.kostenpositionen || []).forEach(pos => {
+                const item = KOSTENKATALOG[pos.typ];
+                const cost = calculateCost(pos.typ, pos.menge, pos.skl);
+                kostenData.push([
+                    item ? item.name : pos.typ,
+                    pos.menge,
+                    item ? item.einheit : '',
+                    pos.skl,
+                    cost.toFixed(2) + ' €'
+                ]);
+                total += cost;
             });
 
             // Dach
@@ -3859,11 +4885,11 @@
                 },
                 fassaden: Object.entries(projectData.fassaden || {}).map(([richtung, f]) => ({
                     richtung: richtung.charAt(0).toUpperCase() + richtung.slice(1),
-                    material: f.material || '',
+                    material: f.art || '',
                     skl: f.skl || null,
                     sklText: sklToText(f.skl),
                     flaeche: f.flaeche || 0,
-                    bemerkung: f.bemerkung || ''
+                    bemerkung: f.zustand || ''
                 })).filter(f => f.skl || f.bemerkung)
             };
 
@@ -3942,27 +4968,40 @@
 
             // === Mängelliste sammeln ===
             const alleMaengel = [];
+            // Manuelle Mängel (mit Priorität + Kosten)
+            (projectData.maengel || []).forEach(m => {
+                alleMaengel.push({
+                    geschoss: m.geschossName || '-',
+                    raum: m.raum || '-',
+                    beschreibung: m.beschreibung,
+                    prioritaet: m.prioritaet || 'mittel',
+                    kostenschaetzung: m.kostenschaetzung || null,
+                    quelle: 'manuell'
+                });
+            });
+            // Auto-gesammelt aus Räumen
             geschossAnalyse.forEach(g => {
                 g.maengel.forEach(m => {
                     alleMaengel.push({
                         geschoss: g.kuerzel,
                         raum: m.raum,
-                        beschreibung: m.bemerkung
+                        beschreibung: m.bemerkung,
+                        quelle: 'raum-bemerkung'
                     });
                 });
             });
             if (zustandsbewertung.dach.bemerkung) {
-                alleMaengel.push({ geschoss: 'Dach', raum: '-', beschreibung: zustandsbewertung.dach.bemerkung });
+                alleMaengel.push({ geschoss: 'Dach', raum: '-', beschreibung: zustandsbewertung.dach.bemerkung, quelle: 'dach' });
             }
             zustandsbewertung.fassaden.forEach(f => {
-                if (f.bemerkung) alleMaengel.push({ geschoss: 'Fassade', raum: f.richtung, beschreibung: f.bemerkung });
+                if (f.bemerkung) alleMaengel.push({ geschoss: 'Fassade', raum: f.richtung, beschreibung: f.bemerkung, quelle: 'fassade' });
             });
 
             // === FINALES JSON für n8n ===
             const exportData = {
                 _meta: {
                     exportDatum: new Date().toISOString(),
-                    appVersion: '2.0',
+                    appVersion: '3.0',
                     format: 'immokonzept-datenaufnahme'
                 },
 
@@ -4004,7 +5043,8 @@
                     const elemente = [
                         { key: 'mod_dach', name: 'Dacherneuerung (inkl. Wärmedämmung)', max: 4 },
                         { key: 'mod_fenster', name: 'Fenster und Außentüren', max: 2 },
-                        { key: 'mod_leitungen', name: 'Leitungssysteme (Strom, Gas, Wasser, Abwasser)', max: 2 },
+                        { key: 'mod_elektro', name: 'Elektroinstallation', max: 2 },
+                        { key: 'mod_sanitaer', name: 'Sanitaer-/Wasserleitungen', max: 2 },
                         { key: 'mod_heizung', name: 'Heizungsanlage', max: 2 },
                         { key: 'mod_fassade', name: 'Wärmedämmung Außenwände', max: 4 },
                         { key: 'mod_baeder', name: 'Bäder', max: 2 },
@@ -4025,15 +5065,15 @@
                     });
 
                     const summe = result.reduce((s, p) => s + p.punkte, 0);
-                    let grad = 'nicht/kaum modernisiert';
+                    let grad = 'keine/geringe Modernisierung';
                     if (summe > 4) grad = 'teilweise modernisiert';
-                    if (summe > 10) grad = 'überwiegend modernisiert';
-                    if (summe > 17) grad = 'umfassend modernisiert';
+                    if (summe > 11) grad = 'überwiegend modernisiert';
+                    if (summe >= 19) grad = 'umfassend modernisiert';
 
                     return {
                         elemente: result,
                         gesamtpunkte: summe,
-                        maxPunkte: 20,
+                        maxPunkte: 22,
                         modernisierungsgrad: grad,
                         berechnungsjahr: aktuellesJahr
                     };
@@ -4116,14 +5156,19 @@
             `;
             document.body.appendChild(modal);
 
-            // Daten für spätere Nutzung speichern
-            window._exportData = data;
+            // Daten für spätere Nutzung speichern (nicht auf window)
+            _lastExportData = data;
 
-            // Gespeicherte Webhook URL laden
-            const savedUrl = localStorage.getItem('n8n_webhook_url');
-            if (savedUrl) {
-                document.getElementById('webhookUrl').value = savedUrl;
-            }
+            // Gespeicherte Webhook URL laden (aus IDB oder localStorage)
+            (async () => {
+                let savedUrl = '';
+                try {
+                    const s = await dbGet('settings', 'sync_webhook_url');
+                    savedUrl = s?.value || '';
+                } catch(e) {}
+                if (!savedUrl) savedUrl = localStorage.getItem('sync_webhook_url') || '';
+                if (savedUrl) document.getElementById('webhookUrl').value = savedUrl;
+            })();
         }
 
         function closeExportModal() {
@@ -4132,7 +5177,7 @@
         }
 
         function downloadJSON() {
-            const data = window._exportData;
+            const data = _lastExportData;
             const d = data.gebaeude;
             const filename = `Datenaufnahme_${d.projektnummer || 'Export'}_${new Date().toISOString().split('T')[0]}.json`;
 
@@ -4147,11 +5192,17 @@
             showToast('JSON heruntergeladen: ' + filename);
         }
 
-        function copyToClipboard() {
-            const textarea = document.getElementById('jsonPreview');
-            textarea.select();
-            document.execCommand('copy');
-            showToast('JSON in Zwischenablage kopiert');
+        async function copyToClipboard() {
+            const text = document.getElementById('jsonPreview').value;
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('JSON in Zwischenablage kopiert');
+            } catch(e) {
+                const textarea = document.getElementById('jsonPreview');
+                textarea.select();
+                document.execCommand('copy');
+                showToast('JSON in Zwischenablage kopiert');
+            }
         }
 
         async function sendToWebhook() {
@@ -4167,13 +5218,14 @@
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(window._exportData)
+                    body: JSON.stringify(_lastExportData)
                 });
 
                 if (response.ok) {
                     showToast('Erfolgreich an n8n gesendet!');
                     // URL speichern für nächstes Mal
-                    localStorage.setItem('n8n_webhook_url', url);
+                    try { await dbPut('settings', { key: 'sync_webhook_url', value: url }); } catch(e) {}
+
                 } else {
                     showToast('Fehler: ' + response.statusText);
                 }
@@ -4183,7 +5235,13 @@
         }
 
         function escapeHtml(str) {
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         // Service Worker
